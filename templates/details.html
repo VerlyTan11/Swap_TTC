@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Detail Pertukaran{% endblock %}
+{% block content %}
+<h3>Detail Pertukaran untuk {{ detail.name }} ({{ detail.nim }})</h3>
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white">
+                <h4>Jadwal SEBELUM Pertukaran</h4>
+            </div>
+            <div class="card-body">
+                <p><strong>Kode MK:</strong> {{ detail.before_code }}</p>
+                <p><strong>Nama MK:</strong> {{ detail.before_name }}</p>
+                <p><strong>Kelas:</strong> {{ detail.before_class }}</p>
+                <p><strong>Hari:</strong> {{ detail.before_day }}</p>
+                <p><strong>Waktu:</strong> {{ detail.before_start }} - {{ detail.before_end }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card border-success">
+            <div class="card-header bg-success text-white">
+                <h4>Jadwal SETELAH Pertukaran</h4>
+            </div>
+            <div class="card-body">
+                <p><strong>Kode MK:</strong> {{ detail.after_code }}</p>
+                <p><strong>Nama MK:</strong> {{ detail.after_name }}</p>
+                <p><strong>Kelas:</strong> {{ detail.after_class }}</p>
+                <p><strong>Hari:</strong> {{ detail.after_day }}</p>
+                <p><strong>Waktu:</strong> {{ detail.after_start }} - {{ detail.after_end }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+<a href="{{ url_for('results') }}" class="btn btn-secondary mt-4">Kembali ke Hasil</a>
+{% endblock %}

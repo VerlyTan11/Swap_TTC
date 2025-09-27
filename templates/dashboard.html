@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3>Dashboard Pertukaran Jadwal</h3>
+    <a href="{{ url_for('run_ttc') }}" class="btn btn-success">Jalankan Algoritma TTC & Lihat Hasil</a>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <h4>Jadwal Anda Saat Ini</h4>
+        <p>Pilih satu kelas yang ingin Anda tukarkan.</p>
+        <form action="{{ url_for('save_preferences') }}" method="POST">
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>Pilih</th>
+                        <th>Kode MK</th>
+                        <th>Nama Mata Kuliah</th>
+                        <th>Kelas</th>
+                        <th>Hari & Waktu</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in schedule %}
+                    <tr>
+                        <td>
+                            <input type="radio" name="enrollment_to_swap" value="{{ s.enrollment_id }}" required>
+                        </td>
+                        <td>{{ s.course_code }}</td>
+                        <td>{{ s.course_name }}</td>
+                        <td>{{ s.class_name }}</td>
+                        <td>{{ s.day }}, {{ s.start_time }} - {{ s.end_time }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="text-center">Anda tidak memiliki jadwal.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+    </div>
+
+    <div class="col-md-6">
+        <h4>Pilih Preferensi Kelas Tujuan</h4>
+        <p>Centang kelas yang Anda inginkan sebagai pengganti. Urutan centang tidak berpengaruh, semua akan dianggap
+            sebagai preferensi.</p>
+        <div style="max-height: 400px; overflow-y: auto;">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Pilih</th>
+                        <th>Kode MK</th>
+                        <th>Nama Mata Kuliah</th>
+                        <th>Kelas</th>
+                        <th>Jadwal</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in all_classes %}
+                    <tr>
+                        <td><input type="checkbox" name="preferred_classes" value="{{ c.id }}"></td>
+                        <td>{{ c.course_code }}</td>
+                        <td>{{ c.course_name }}</td>
+                        <td>{{ c.class_name }}</td>
+                        <td>{{ c.day }}, {{ c.start_time }} - {{ c.end_time }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<div class="text-center mt-3">
+    <button type="submit" class="btn btn-primary btn-lg">Simpan Preferensi</button>
+</div>
+</form>
+{% endblock %}

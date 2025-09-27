@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Hasil Pertukaran{% endblock %}
+{% block content %}
+<h3>Hasil Pertukaran Jadwal</h3>
+<hr>
+<h4>Statistik Kepuasan</h4>
+<div class="alert alert-info">
+    Rata-rata persentase kepuasan mahasiswa yang berhasil bertukar: <strong>{{ "%.2f"|format(average_satisfaction)
+        }}%</strong>
+</div>
+
+<h4>Mahasiswa yang Berhasil Bertukar</h4>
+{% if successful_swaps %}
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>NIM</th>
+            <th>Nama</th>
+            <th>Kelas Lama</th>
+            <th>Kelas Baru</th>
+            <th>Skor Preferensi</th>
+            <th>Aksi</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for swap in successful_swaps %}
+        <tr>
+            <td>{{ swap.nim }}</td>
+            <td>{{ swap.name }}</td>
+            <td>{{ swap.before_course }} ({{ swap.before_class }})</td>
+            <td>{{ swap.after_course }} ({{ swap.after_class }})</td>
+            <td>{{ swap.score_points }}</td>
+            <td>
+                <a href="{{ url_for('details', nim=swap.nim) }}" class="btn btn-sm btn-info">Detail</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>Tidak ada mahasiswa yang berhasil bertukar pada proses ini.</p>
+{% endif %}
+
+<h4 class="mt-5">Mahasiswa yang Berpartisipasi Namun Tidak Berhasil</h4>
+{% if unsuccessful_swaps %}
+<ul class="list-group">
+    {% for student in unsuccessful_swaps %}
+    <li class="list-group-item">{{ student.name }} ({{ student.nim }})</li>
+    {% endfor %}
+</ul>
+{% else %}
+<p>Semua partisipan berhasil menemukan pertukaran, atau tidak ada yang berpartisipasi.</p>
+{% endif %}
+{% endblock %}
