@@ -90,10 +90,9 @@ def dashboard():
     conn.close()
     return render_template('dashboard.html', schedule=user_schedule, all_classes=all_classes)
 
-# --- [DIUBAH TOTAL] PROSES SIMPAN PREFERENSI ---
+# --- PROSES SIMPAN PREFERENSI (TIDAK BERUBAH) ---
 @app.route('/save_preferences', methods=['POST'])
 def save_preferences():
-    """Menyimpan preferensi mahasiswa, menghitung skor, dan menyesuaikan dengan struktur DB baru."""
     if 'nim' not in session:
         return redirect(url_for('login'))
 
@@ -111,56 +110,27 @@ def save_preferences():
         
     cursor = conn.cursor()
     try:
-        # Hapus preferensi lama mahasiswa
         cursor.execute("DELETE FROM preferences WHERE nim = %s", (session['nim'],))
-
-        # Simpan "master" preferensi
         cursor.execute("INSERT INTO preferences (nim, swap_course) VALUES (%s, %s)", 
                        (session['nim'], enrollment_to_swap))
-        
-        # Ambil ID dari baris yang baru saja dimasukkan. Ini akan jadi PENGHUBUNG.
         preference_master_id = cursor.lastrowid
-
-        # Loop untuk setiap kelas yang dipilih
         for i, class_id in enumerate(preferred_classes_ids):
-            # [BARU] Menentukan urutan dan skor
             urutan = i + 1
-            skor = 0
-            if urutan == 1:
-                skor = 100
-            elif urutan == 2:
-                skor = 75
-            elif urutan == 3:
-                skor = 50
-            else:
-                skor = 25
-            
-            # Ambil group_code dari class_id yang dipilih
+            skor = 100 if urutan == 1 else (75 if urutan == 2 else (50 if urutan == 3 else 25))
             cursor.execute("SELECT group_code FROM course_classes WHERE id = %s", (class_id,))
             result = cursor.fetchone()
             if result:
                 group_code = result[0]
-                
-                # [DIUBAH] Query INSERT sekarang sesuai dengan struktur tabel yang baru
-                sql_insert_detail = """
-                    INSERT INTO pref_courses (preference_id, urutan, skor, group_code) 
-                    VALUES (%s, %s, %s, %s)
-                """
-                # `preference_id` diisi oleh ID penghubung dari tabel `preferences`
+                sql_insert_detail = "INSERT INTO pref_courses (preference_id, urutan, skor, group_code) VALUES (%s, %s, %s, %s)"
                 cursor.execute(sql_insert_detail, (preference_master_id, urutan, skor, group_code))
-        
         conn.commit()
         flash('Preferensi Anda berhasil disimpan!', 'success')
     except mysql.connector.Error as err:
         conn.rollback()
         flash(f'Terjadi kesalahan database: {err}', 'danger')
-    except Exception as e:
-        conn.rollback()
-        flash(f'Terjadi kesalahan sistem: {e}', 'danger')
     finally:
         cursor.close()
         conn.close()
-
     return redirect(url_for('dashboard'))
 
 # --- PAGE 2: GENERATE ALGORITMA & HASIL ---
@@ -189,19 +159,22 @@ def results():
         flash('Koneksi database gagal.', 'danger')
         return render_template('results.html', successful_swaps=[], unsuccessful_swaps=[], average_satisfaction=0)
     cursor = conn.cursor(dictionary=True)
+
+    # === [PERUBAHAN 3] Query untuk hasil sukses disesuaikan dengan skema baru ===
     query_success = """
         SELECT sr.nim, s.name, sr.score_points, 
-               bc_info.course_name AS before_course, bc_info.class_name AS before_class,
-               ac_info.course_name AS after_course, ac_info.class_name AS after_class
+               before_cc.course_name AS before_course, before_cc.class_name AS before_class,
+               after_cc.course_name AS after_course, after_cc.class_name AS after_class
         FROM swap_results sr
         JOIN students s ON sr.nim = s.nim
-        LEFT JOIN enrollments be ON sr.before_enrollment_id = be.id
-        LEFT JOIN course_classes bc_info ON be.class_id = bc_info.id
-        LEFT JOIN course_classes ac_info ON sr.after_enrollment_id = ac_info.id
+        JOIN course_classes before_cc ON sr.before_class_id = before_cc.id
+        JOIN course_classes after_cc ON sr.after_class_id = after_cc.id
         WHERE sr.score_points > 0
     """
     cursor.execute(query_success)
     successful_swaps = cursor.fetchall()
+
+    # Query untuk yang tidak sukses tidak berubah
     query_unsuccessful = """
         SELECT s.nim, s.name FROM preferences p
         JOIN students s ON p.nim = s.nim
@@ -209,9 +182,11 @@ def results():
     """
     cursor.execute(query_unsuccessful)
     unsuccessful_swaps = cursor.fetchall()
+    
     cursor.execute("SELECT AVG(score_points) as avg_score FROM swap_results WHERE score_points > 0")
     avg_result = cursor.fetchone()
     average_satisfaction = avg_result['avg_score'] if avg_result and avg_result['avg_score'] else 0
+    
     cursor.close()
     conn.close()
     return render_template('results.html', 
@@ -229,6 +204,8 @@ def details(nim):
         flash('Koneksi database gagal.', 'danger')
         return redirect(url_for('results'))
     cursor = conn.cursor(dictionary=True)
+
+    # === [PERUBAHAN 4] Query untuk detail disesuaikan dengan skema baru ===
     query_detail = """
         SELECT sr.nim, s.name,
                b_cc.course_code AS before_code, b_cc.course_name AS before_name, b_cc.class_name AS before_class, 
@@ -237,18 +214,20 @@ def details(nim):
                a_cc.day AS after_day, a_cc.start_time AS after_start, a_cc.end_time AS after_end
         FROM swap_results sr
         JOIN students s ON sr.nim = s.nim
-        JOIN enrollments b_e ON sr.before_enrollment_id = b_e.id
-        JOIN course_classes b_cc ON b_e.class_id = b_cc.id
-        JOIN course_classes a_cc ON sr.after_enrollment_id = a_cc.id
+        JOIN course_classes b_cc ON sr.before_class_id = b_cc.id
+        JOIN course_classes a_cc ON sr.after_class_id = a_cc.id
         WHERE sr.nim = %s
     """
     cursor.execute(query_detail, (nim,))
     swap_detail = cursor.fetchone()
+    
     cursor.close()
     conn.close()
+    
     if not swap_detail:
         flash('Detail pertukaran tidak ditemukan.', 'warning')
         return redirect(url_for('results'))
+        
     return render_template('details.html', detail=swap_detail)
 
 if __name__ == '__main__':

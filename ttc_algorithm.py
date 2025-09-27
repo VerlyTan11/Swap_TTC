@@ -184,11 +184,21 @@ def run_ttc_swap(db_connection):
                     old_enrollment_id = pref['offering_enrollment_id']
                     score = pref['skor']
 
+                    # === [PERUBAHAN 1] Ambil class_id lama dari enrollment_id lama ===
+                    cursor.execute("SELECT class_id FROM enrollments WHERE id = %s", (old_enrollment_id,))
+                    old_class_result = cursor.fetchone()
+                    if not old_class_result:
+                        print(f"  - [ERROR] Tidak bisa menemukan class_id untuk enrollment {old_enrollment_id}. Melewati swap untuk {nim_update}."); sys.stdout.flush()
+                        continue
+                    old_class_id = old_class_result['class_id']
+
                     # Update enrollment
                     cursor.execute("UPDATE enrollments SET class_id=%s WHERE id=%s", (new_class_id, old_enrollment_id))
-                    # Simpan hasil swap
-                    insert_swap = "INSERT INTO swap_results (nim, before_enrollment_id, after_enrollment_id, score_points) VALUES (%s,%s,%s,%s)"
-                    cursor.execute(insert_swap, (nim_update, old_enrollment_id, new_class_id, score))
+                    
+                    # === [PERUBAHAN 2] Sesuaikan query INSERT dengan kolom baru di swap_results ===
+                    insert_swap = "INSERT INTO swap_results (nim, before_class_id, after_class_id, score_points) VALUES (%s,%s,%s,%s)"
+                    cursor.execute(insert_swap, (nim_update, old_class_id, new_class_id, score))
+                    
                     participants.discard(nim_update)
 
                     # Hapus preferensi yang sudah dieksekusi (pop yang pertama)
