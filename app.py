@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 import mysql.connector
 from ttc_algorithm import run_ttc_swap 
+from datetime import datetime
 
 app = Flask(__name__)
 app.secret_key = 'ganti-dengan-kunci-rahasia-yang-sangat-aman'
@@ -56,17 +57,27 @@ def logout():
     session.clear()
     return redirect(url_for('login'))
 
+def day_to_number(day_name):
+    days = {
+        'Senin': 1,
+        'Selasa': 2,
+        'Rabu': 3,
+        'Kamis': 4,
+        'Jumat': 5,
+        'Sabtu': 6,
+        'Minggu': 7
+    }
+    return days.get(day_name, 99)
+
 # --- PAGE 1: DASHBOARD & PEMILIHAN PREFERENSI ---
 @app.route('/dashboard', methods=['GET', 'POST'])
 def dashboard():
     if 'nim' not in session:
         return redirect(url_for('login'))
-
     conn = get_db_connection()
     if not conn:
         flash('Koneksi database gagal.', 'danger')
         return render_template('dashboard.html', schedule=[], all_classes=[])
-
     cursor = conn.cursor(dictionary=True)
     query_jadwal = """
         SELECT e.id AS enrollment_id, cc.course_code, cc.course_name, cc.class_name, 
@@ -77,7 +88,8 @@ def dashboard():
     """
     cursor.execute(query_jadwal, (session['nim'],))
     user_schedule = cursor.fetchall()
-
+    # Urutkan jadwal berdasar hari dan jam mulai (Senin pagi dulu)
+    user_schedule.sort(key=lambda x: (day_to_number(x['day']), x['start_time']))
     query_all_classes = """
         SELECT id, course_code, course_name, class_name, day, start_time, end_time
         FROM course_classes
@@ -85,7 +97,6 @@ def dashboard():
     """
     cursor.execute(query_all_classes, (session['nim'],))
     all_classes = cursor.fetchall()
-    
     cursor.close()
     conn.close()
     return render_template('dashboard.html', schedule=user_schedule, all_classes=all_classes)
