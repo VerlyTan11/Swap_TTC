@@ -4,7 +4,7 @@ from ttc_algorithm import run_ttc_swap
 from datetime import datetime
 
 app = Flask(__name__)
-app.secret_key = 'ganti-dengan-kunci-rahasia-yang-sangat-aman'
+app.secret_key = '0101'
 
 # --- KONFIGURASI DATABASE ---
 db_config = {
@@ -30,13 +30,25 @@ def login():
     if request.method == 'POST':
         nim = request.form['nim']
         password = request.form['password']
-        
+
+        # --- VALIDASI ADMIN SECARA LANGSUNG (HARDCODE) ---
+        # Ganti 'admin' dan '1234' dengan username & password yang Anda inginkan
+        if nim == 'admin' and password == '1234':
+            session['nim'] = nim
+            session['name'] = 'Administrator' # Nama bisa di-set statis
+            session['role'] = 'admin'
+            flash('Login sebagai Administrator berhasil!', 'info')
+            return redirect(url_for('dashboard'))
+        # --- AKHIR VALIDASI ADMIN ---
+
+        # Jika bukan admin, lanjutkan cek ke database untuk mahasiswa biasa
         conn = get_db_connection()
         if not conn:
             flash('Koneksi database gagal. Silakan coba lagi nanti.', 'danger')
             return render_template('login.html')
             
         cursor = conn.cursor(dictionary=True)
+        # Query ini tidak perlu diubah
         cursor.execute('SELECT * FROM students WHERE nim = %s AND password = %s', (nim, password))
         student = cursor.fetchone()
         
@@ -46,6 +58,7 @@ def login():
         if student:
             session['nim'] = student['nim']
             session['name'] = student['name']
+            session['role'] = 'student'
             return redirect(url_for('dashboard'))
         else:
             flash('NIM atau Password salah!', 'danger')
@@ -101,7 +114,7 @@ def dashboard():
     conn.close()
     return render_template('dashboard.html', schedule=user_schedule, all_classes=all_classes)
 
-# --- PROSES SIMPAN PREFERENSI (TIDAK BERUBAH) ---
+# --- PROSES SIMPAN PREFERENSI ---
 @app.route('/save_preferences', methods=['POST'])
 def save_preferences():
     if 'nim' not in session:
@@ -149,6 +162,13 @@ def save_preferences():
 def run_ttc():
     if 'nim' not in session:
         return redirect(url_for('login'))
+        
+    # --- TAMBAHKAN PROTEKSI INI ---
+    if session.get('role') != 'admin':
+        flash('Hanya admin yang dapat menjalankan algoritma.', 'danger')
+        return redirect(url_for('dashboard'))
+    # --- END PROTEKSI ---
+
     try:
         conn = get_db_connection()
         if not conn:
@@ -165,41 +185,78 @@ def run_ttc():
 def results():
     if 'nim' not in session:
         return redirect(url_for('login'))
+        
     conn = get_db_connection()
     if not conn:
         flash('Koneksi database gagal.', 'danger')
         return render_template('results.html', successful_swaps=[], unsuccessful_swaps=[], average_satisfaction=0)
+    
     cursor = conn.cursor(dictionary=True)
-
-    # === [PERUBAHAN 3] Query untuk hasil sukses disesuaikan dengan skema baru ===
-    query_success = """
-        SELECT sr.nim, s.name, sr.score_points, 
-               before_cc.course_name AS before_course, before_cc.class_name AS before_class,
-               after_cc.course_name AS after_course, after_cc.class_name AS after_class
-        FROM swap_results sr
-        JOIN students s ON sr.nim = s.nim
-        JOIN course_classes before_cc ON sr.before_class_id = before_cc.id
-        JOIN course_classes after_cc ON sr.after_class_id = after_cc.id
-        WHERE sr.score_points > 0
-    """
-    cursor.execute(query_success)
-    successful_swaps = cursor.fetchall()
-
-    # Query untuk yang tidak sukses tidak berubah
-    query_unsuccessful = """
-        SELECT s.nim, s.name FROM preferences p
-        JOIN students s ON p.nim = s.nim
-        WHERE p.nim NOT IN (SELECT nim FROM swap_results WHERE score_points > 0)
-    """
-    cursor.execute(query_unsuccessful)
-    unsuccessful_swaps = cursor.fetchall()
     
-    cursor.execute("SELECT AVG(score_points) as avg_score FROM swap_results WHERE score_points > 0")
-    avg_result = cursor.fetchone()
-    average_satisfaction = avg_result['avg_score'] if avg_result and avg_result['avg_score'] else 0
-    
+    successful_swaps = []
+    unsuccessful_swaps = []
+    average_satisfaction = 0
+
+    # --- LOGIKA BERDASARKAN ROLE ---
+    if session.get('role') == 'admin':
+        # Admin melihat semua data
+        query_success = """
+            SELECT sr.nim, s.name, sr.score_points, 
+                   before_cc.course_name AS before_course, before_cc.class_name AS before_class,
+                   after_cc.course_name AS after_course, after_cc.class_name AS after_class
+            FROM swap_results sr
+            JOIN students s ON sr.nim = s.nim
+            JOIN course_classes before_cc ON sr.before_class_id = before_cc.id
+            JOIN course_classes after_cc ON sr.after_class_id = after_cc.id
+        """
+        cursor.execute(query_success)
+        successful_swaps = cursor.fetchall()
+
+        query_unsuccessful = """
+            SELECT s.nim, s.name FROM preferences p
+            JOIN students s ON p.nim = s.nim
+            WHERE p.nim NOT IN (SELECT nim FROM swap_results)
+        """
+        cursor.execute(query_unsuccessful)
+        unsuccessful_swaps = cursor.fetchall()
+        
+        cursor.execute("SELECT AVG(score_points) as avg_score FROM swap_results")
+        avg_result = cursor.fetchone()
+        average_satisfaction = avg_result['avg_score'] if avg_result and avg_result['avg_score'] else 0
+
+    else:
+        # Mahasiswa hanya melihat datanya sendiri
+        nim = session['nim']
+        query_success_user = """
+            SELECT sr.nim, s.name, sr.score_points, 
+                   before_cc.course_name AS before_course, before_cc.class_name AS before_class,
+                   after_cc.course_name AS after_course, after_cc.class_name AS after_class
+            FROM swap_results sr
+            JOIN students s ON sr.nim = s.nim
+            JOIN course_classes before_cc ON sr.before_class_id = before_cc.id
+            JOIN course_classes after_cc ON sr.after_class_id = after_cc.id
+            WHERE sr.nim = %s
+        """
+        cursor.execute(query_success_user, (nim,))
+        successful_swaps = cursor.fetchall()
+
+        # Cek jika mahasiswa berpartisipasi tapi gagal
+        if not successful_swaps:
+            query_unsuccessful_user = """
+                SELECT s.nim, s.name FROM preferences p
+                JOIN students s ON p.nim = s.nim
+                WHERE p.nim = %s AND p.nim NOT IN (SELECT nim FROM swap_results)
+            """
+            cursor.execute(query_unsuccessful_user, (nim,))
+            unsuccessful_swaps = cursor.fetchall()
+        
+        # Kepuasan adalah skor miliknya sendiri
+        if successful_swaps:
+            average_satisfaction = successful_swaps[0]['score_points']
+
     cursor.close()
     conn.close()
+    
     return render_template('results.html', 
                            successful_swaps=successful_swaps, 
                            unsuccessful_swaps=unsuccessful_swaps, 

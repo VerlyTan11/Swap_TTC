@@ -3,7 +3,12 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h3>Dashboard Pertukaran Jadwal</h3>
+
+    {% if session.role == 'admin' %}
     <a href="{{ url_for('run_ttc') }}" class="btn btn-success">Jalankan Algoritma TTC & Lihat Hasil</a>
+    {% else %}
+    <a href="{{ url_for('results') }}" class="btn btn-info">Lihat Hasil Pertukaran</a>
+    {% endif %}
 </div>
 
 <div class="row">
