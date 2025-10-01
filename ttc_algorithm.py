@@ -1,7 +1,6 @@
 import networkx as nx
 import sys
 
-# Fungsi ini tidak perlu diubah.
 def check_schedule_conflict(student_schedule, new_class_schedule, offered_class_group_code):
     """Mengecek apakah jadwal kelas baru bentrok dengan jadwal yang sudah ada."""
     if not new_class_schedule:
@@ -21,13 +20,11 @@ def check_schedule_conflict(student_schedule, new_class_schedule, offered_class_
                 return existing_class['course_name']
     return None
 
-# Fungsi bantuan ini tidak perlu diubah.
 def fetch_all_as_dict(cursor):
     """Mengambil semua hasil query sebagai list of dictionaries."""
     columns = [col[0] for col in cursor.description]
     return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
-# Fungsi bantuan ini tidak perlu diubah.
 def fetch_one_as_dict(cursor):
     """Mengambil satu hasil query sebagai dictionary."""
     columns = [col[0] for col in cursor.description]
@@ -39,9 +36,7 @@ def run_ttc_swap(db_connection):
         print("--- [LOG START] Memulai Proses Pertukaran Jadwal ---"); sys.stdout.flush()
         cursor = db_connection.cursor(buffered=True)
 
-        # --- PERUBAHAN KUNCI 1: Mengambil SEMUA preferensi ---
-        # Query ini tidak lagi memfilter 'urutan = 1'.
-        # Sebaliknya, ia mengambil semua pilihan dan mengurutkannya.
+        # --- Mengambil semua preferensi dan diurutkan ---
         prefs_query = """
             SELECT 
                 p.id as pref_id, 
@@ -61,9 +56,7 @@ def run_ttc_swap(db_connection):
         cursor.execute(prefs_query)
         all_prefs_list = fetch_all_as_dict(cursor)
 
-        # --- PERUBAHAN KUNCI 2: Struktur Data Baru ---
-        # Kita mengelompokkan preferensi berdasarkan penawaran (pref_id).
-        # Setiap penawaran sekarang memiliki daftar 'choices' yang terurut.
+        # --- Mengelompokkan preferens, setiap penawaran memiliki daftar 'choices' yang terurut berdasarkan pref_id ---
         prefs_data = {}
         for pref in all_prefs_list:
             pref_id = pref['pref_id']
@@ -81,7 +74,7 @@ def run_ttc_swap(db_connection):
                 'skor': pref['skor']
             })
 
-        # Ambil data jadwal mahasiswa (tidak berubah)
+        # Ambil data jadwal mahasiswa
         cursor.execute("SELECT nim, group_code, day, start_time, end_time, course_name FROM enrollments e JOIN course_classes cc ON e.class_id = cc.id")
         schedules_by_nim = {}
         for row in fetch_all_as_dict(cursor):
@@ -106,7 +99,7 @@ def run_ttc_swap(db_connection):
             # Menyimpan pilihan mana yang berhasil membentuk panah
             successful_pointers = {}
 
-            # --- PERUBAHAN KUNCI 3: Logika Pembangunan Graf ---
+            # --- Logika Pembangunan Graf ---
             for current_pref_id in list(participants):
                 current_offer = prefs_data[current_pref_id]
                 
@@ -157,7 +150,7 @@ def run_ttc_swap(db_connection):
                     old_enrollment_id = prefs_data[current_pref_id]['offering_enrollment_id']
                     old_class_id = prefs_data[current_pref_id]['offering_class_id']
                     
-                    # Ambil skor dari pilihan yang berhasil, bukan dari data utama
+                    # Ambil skor dari pilihan yang berhasil
                     score = successful_pointers[current_pref_id]['skor']
                     
                     new_class_id = prefs_data[next_pref_id]['offering_class_id']
