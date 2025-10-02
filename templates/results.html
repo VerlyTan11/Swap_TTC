@@ -1,7 +1,22 @@
 {% extends "base.html" %}
 {% block title %}Hasil Pertukaran{% endblock %}
 {% block content %}
-<h3>Hasil Pertukaran Jadwal</h3>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3>Hasil Pertukaran Jadwal</h3>
+    {% if session.role == 'admin' %}
+    <a href="{{ url_for('export_report_excel') }}" class="btn btn-outline-success">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-download"
+            viewBox="0 0 16 16">
+            <path
+                d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z" />
+            <path
+                d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z" />
+        </svg>
+        Ekspor Jadwal Lengkap (Excel)
+    </a>
+    {% endif %}
+</div>
 <hr>
 
 {% if session.role == 'admin' %}
@@ -25,32 +40,33 @@
     Detail Pertukaran Anda
     {% endif %}
 </h4>
+
 {% if successful_swaps %}
 <table class="table table-striped">
     <thead>
-                <tr>
-                        <th>NIM</th>
-                        <th>Nama</th>
-                        <th>Kelas Lama</th>
-                        <th>Kelas Baru</th>
-                        <th>Skor Preferensi</th>
-                        <th>Aksi</th>
-                    </tr>
-            </thead>
-        <tbody>
-                {% for swap in successful_swaps %}
-                <tr>
-                        <td>{{ swap.nim }}</td>
-                        <td>{{ swap.name }}</td>
-                        <td>{{ swap.before_course }} ({{ swap.before_class }})</td>
-                        <td>{{ swap.after_course }} ({{ swap.after_class }})</td>
-                        <td>{{ swap.score_points }}</td>
-                        <td>
-                                <a href="{{ url_for('details', nim=swap.nim) }}" class="btn btn-sm btn-info">Detail</a>
-                            </td>
-                    </tr>
-                {% endfor %}
-            </tbody>
+        <tr>
+            <th>NIM</th>
+            <th>Nama</th>
+            <th>Kelas Lama</th>
+            <th>Kelas Baru</th>
+            <th>Skor Preferensi</th>
+            <th>Aksi</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for swap in successful_swaps %}
+        <tr>
+            <td>{{ swap.nim }}</td>
+            <td>{{ swap.name }}</td>
+            <td>{{ swap.before_course }} ({{ swap.before_class }})</td>
+            <td>{{ swap.after_course }} ({{ swap.after_class }})</td>
+            <td>{{ swap.score_points if session.role == 'admin' else average_satisfaction }}</td>
+            <td>
+                <a href="{{ url_for('details', nim=swap.nim) }}" class="btn btn-sm btn-info">Detail</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
 </table>
 {% else %}
 {% if session.role == 'admin' %}
@@ -61,9 +77,7 @@
 {% else %}
 <p>Anda tidak berpartisipasi dalam pertukaran jadwal, atau hasil belum tersedia.</p>
 {% endif %}
-{% endif %}
-
-{% if session.role == 'admin' %}
+{% endif %} {% if session.role == 'admin' %}
 <h4 class="mt-5">Mahasiswa yang Berpartisipasi Namun Tidak Berhasil</h4>
 {% if unsuccessful_swaps %}
 <ul class="list-group">

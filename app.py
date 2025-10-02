@@ -1,7 +1,10 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash
+from flask import Flask, render_template, request, redirect, url_for, session, flash, Response
 import mysql.connector
 from ttc_algorithm import run_ttc_swap 
 from datetime import datetime
+import io
+import csv
+import pandas as pd
 
 app = Flask(__name__)
 app.secret_key = '0101'
@@ -297,6 +300,79 @@ def details(nim):
         return redirect(url_for('results'))
         
     return render_template('details.html', detail=swap_detail)
+
+@app.route('/export_report_excel')
+def export_report_excel():
+    # Proteksi: Pastikan hanya admin yang bisa mengakses
+    if 'nim' not in session or session.get('role') != 'admin':
+        flash('Akses ditolak.', 'danger')
+        return redirect(url_for('dashboard'))
+
+    try:
+        conn = get_db_connection()
+        if not conn:
+            flash('Koneksi database gagal.', 'danger')
+            return redirect(url_for('results'))
+
+        # --- Query 1: Untuk Sheet "Hasil Pertukaran" ---
+        query_results = """
+            SELECT 
+                s.name AS 'Nama Mahasiswa',
+                sr.nim AS 'NIM',
+                before_cc.course_name AS 'Kelas Lama',
+                after_cc.course_name AS 'Kelas Baru',
+                sr.score_points AS 'Skor Preferensi'
+            FROM swap_results sr
+            JOIN students s ON sr.nim = s.nim
+            JOIN course_classes before_cc ON sr.before_class_id = before_cc.id
+            JOIN course_classes after_cc ON sr.after_class_id = after_cc.id
+            ORDER BY s.name;
+        """
+        df_results = pd.read_sql(query_results, conn)
+
+        # --- Query 2: Untuk Sheet "Jadwal Final Lengkap" ---
+        query_final_schedule = """
+            SELECT
+                s.name AS 'Nama Mahasiswa',
+                s.nim AS 'NIM',
+                s.major AS 'Jurusan',
+                cc.course_code AS 'Kode MK',
+                cc.course_name AS 'Nama Mata Kuliah',
+                cc.class_name AS 'Kelas',
+                cc.day AS 'Hari',
+                cc.start_time AS 'Jam Mulai',
+                cc.end_time AS 'Jam Selesai'
+            FROM enrollments e
+            JOIN students s ON e.nim = s.nim
+            JOIN course_classes cc ON e.class_id = cc.id
+            ORDER BY s.nim, FIELD(cc.day, 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'), cc.start_time;
+        """
+        df_schedule = pd.read_sql(query_final_schedule, conn)
+
+    finally:
+        if conn and conn.is_connected():
+            conn.close()
+
+    # --- Proses Pembuatan File Excel di Memori ---
+    output = io.BytesIO()
+    # Membuat writer Excel yang akan menulis ke 'output' di memori
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df_results.to_excel(writer, sheet_name='Hasil Pertukaran', index=False)
+        df_schedule.to_excel(writer, sheet_name='Jadwal Final Lengkap', index=False)
+
+    # Mengambil data biner dari memori
+    excel_data = output.getvalue()
+
+    # --- Kirim File Excel ke Browser untuk Diunduh ---
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"laporan_pertukaran_{timestamp}.xlsx" # <-- Ubah ekstensi menjadi .xlsx
+
+    return Response(
+        excel_data,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", # <-- Mimetype untuk .xlsx
+        headers={"Content-Disposition":
+                 f"attachment; filename={filename}"}
+    )
 
 if __name__ == '__main__':
     app.run(debug=True)
