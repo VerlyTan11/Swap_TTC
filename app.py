@@ -315,9 +315,9 @@ def export_report_excel():
             return redirect(url_for('results'))
 
         # --- Query 1: Untuk Sheet "Hasil Pertukaran" ---
+        # [PERBAIKAN] Kolom 'Nama Mahasiswa' dihapus
         query_results = """
             SELECT 
-                s.name AS 'Nama Mahasiswa',
                 sr.nim AS 'NIM',
                 before_cc.course_name AS 'Kelas Lama',
                 after_cc.course_name AS 'Kelas Baru',
@@ -326,22 +326,22 @@ def export_report_excel():
             JOIN students s ON sr.nim = s.nim
             JOIN course_classes before_cc ON sr.before_class_id = before_cc.id
             JOIN course_classes after_cc ON sr.after_class_id = after_cc.id
-            ORDER BY s.name;
+            ORDER BY sr.nim;
         """
         df_results = pd.read_sql(query_results, conn)
 
         # --- Query 2: Untuk Sheet "Jadwal Final Lengkap" ---
+        # [PERBAIKAN] Kolom 'Nama Mahasiswa' dihapus dan format waktu diperbaiki
         query_final_schedule = """
             SELECT
-                s.name AS 'Nama Mahasiswa',
                 s.nim AS 'NIM',
                 s.major AS 'Jurusan',
                 cc.course_code AS 'Kode MK',
                 cc.course_name AS 'Nama Mata Kuliah',
                 cc.class_name AS 'Kelas',
                 cc.day AS 'Hari',
-                cc.start_time AS 'Jam Mulai',
-                cc.end_time AS 'Jam Selesai'
+                TIME_FORMAT(cc.start_time, '%H:%i') AS 'Jam Mulai',
+                TIME_FORMAT(cc.end_time, '%H:%i') AS 'Jam Selesai'
             FROM enrollments e
             JOIN students s ON e.nim = s.nim
             JOIN course_classes cc ON e.class_id = cc.id
@@ -353,23 +353,20 @@ def export_report_excel():
         if conn and conn.is_connected():
             conn.close()
 
-    # --- Proses Pembuatan File Excel di Memori ---
+    # --- Proses Pembuatan File Excel di Memori (Tidak ada perubahan di sini) ---
     output = io.BytesIO()
-    # Membuat writer Excel yang akan menulis ke 'output' di memori
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df_results.to_excel(writer, sheet_name='Hasil Pertukaran', index=False)
         df_schedule.to_excel(writer, sheet_name='Jadwal Final Lengkap', index=False)
-
-    # Mengambil data biner dari memori
+    
     excel_data = output.getvalue()
-
-    # --- Kirim File Excel ke Browser untuk Diunduh ---
+    
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"laporan_pertukaran_{timestamp}.xlsx" # <-- Ubah ekstensi menjadi .xlsx
+    filename = f"laporan_pertukaran_{timestamp}.xlsx"
 
     return Response(
         excel_data,
-        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", # <-- Mimetype untuk .xlsx
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition":
                  f"attachment; filename={filename}"}
     )
