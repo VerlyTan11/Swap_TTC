@@ -1,5 +1,9 @@
 import networkx as nx
 import sys
+import time
+import os
+import psutil
+import matplotlib.pyplot as plt
 
 def check_schedule_conflict(student_schedule, new_class_schedule, offered_class_group_code):
     """Mengecek apakah jadwal kelas baru bentrok dengan jadwal yang sudah ada."""
@@ -32,21 +36,18 @@ def fetch_one_as_dict(cursor):
     return dict(zip(columns, row)) if row else None
 
 def run_ttc_swap(db_connection):
+    #Inisialisasi pengukuran waktu dan memori
+    process = psutil.Process(os.getpid())
+    start_time = time.perf_counter()
+    mem_before = process.memory_info().rss / (1024 * 1024) # Konversi ke MB
+
     try:
         print("--- [LOG START] Memulai Proses Pertukaran Jadwal ---"); sys.stdout.flush()
         cursor = db_connection.cursor(buffered=True)
 
-        # --- Mengambil semua preferensi dan diurutkan ---
         prefs_query = """
-            SELECT 
-                p.id as pref_id, 
-                p.nim, 
-                p.swap_course AS offering_enrollment_id,
-                e.class_id AS offering_class_id,
-                cc_offer.group_code AS offering_group_code,
-                pc.group_code AS target_group_code,
-                pc.skor,
-                pc.urutan
+            SELECT p.id as pref_id, p.nim, p.swap_course AS offering_enrollment_id, e.class_id AS offering_class_id,
+                   cc_offer.group_code AS offering_group_code, pc.group_code AS target_group_code, pc.skor, pc.urutan
             FROM preferences p
             JOIN pref_courses pc ON p.id = pc.preference_id
             JOIN enrollments e ON p.swap_course = e.id
@@ -55,35 +56,26 @@ def run_ttc_swap(db_connection):
         """
         cursor.execute(prefs_query)
         all_prefs_list = fetch_all_as_dict(cursor)
-
-        # --- Mengelompokkan preferens, setiap penawaran memiliki daftar 'choices' yang terurut berdasarkan pref_id ---
         prefs_data = {}
         for pref in all_prefs_list:
             pref_id = pref['pref_id']
             if pref_id not in prefs_data:
                 prefs_data[pref_id] = {
-                    'pref_id': pref['pref_id'],
-                    'nim': pref['nim'],
+                    'pref_id': pref['pref_id'], 'nim': pref['nim'],
                     'offering_enrollment_id': pref['offering_enrollment_id'],
                     'offering_class_id': pref['offering_class_id'],
                     'offering_group_code': pref['offering_group_code'],
                     'choices': []
                 }
             prefs_data[pref_id]['choices'].append({
-                'target_group_code': pref['target_group_code'],
-                'skor': pref['skor']
+                'target_group_code': pref['target_group_code'], 'skor': pref['skor']
             })
-
-        # Ambil data jadwal mahasiswa
         cursor.execute("SELECT nim, group_code, day, start_time, end_time, course_name FROM enrollments e JOIN course_classes cc ON e.class_id = cc.id")
         schedules_by_nim = {}
         for row in fetch_all_as_dict(cursor):
             schedules_by_nim.setdefault(row['nim'], []).append(row)
-
         cursor.execute("TRUNCATE TABLE swap_results"); db_connection.commit()
-
         participants = set(prefs_data.keys())
-        initial_participants = set(participants)
         print(f"[INFO] Jumlah penawaran yang berpartisipasi: {len(participants)}"); sys.stdout.flush()
 
         iteration = 1
@@ -96,80 +88,72 @@ def run_ttc_swap(db_connection):
             }
 
             G = nx.DiGraph()
-            # Menyimpan pilihan mana yang berhasil membentuk panah
             successful_pointers = {}
 
-            # --- Logika Pembangunan Graf ---
             for current_pref_id in list(participants):
                 current_offer = prefs_data[current_pref_id]
-                
-                # Coba setiap pilihan secara berurutan
                 for choice in current_offer['choices']:
                     target_group = choice['target_group_code']
                     target_pref_id = offered_group_to_pref_id.get(target_group)
-                    
-                    # Validasi 1: Apakah kelas target ditawarkan oleh peserta aktif?
-                    if not target_pref_id:
-                        continue # Coba pilihan berikutnya
-                    
+                    if not target_pref_id: continue
                     target_offer = prefs_data[target_pref_id]
-
-                    # Validasi 2: Apakah menunjuk ke penawaran milik sendiri?
-                    if current_offer['nim'] == target_offer['nim']:
-                        continue # Coba pilihan berikutnya
-
-                    # Validasi 3: Apakah ada bentrok jadwal?
+                    if current_offer['nim'] == target_offer['nim']: continue
                     target_class_schedule = next((s for s in schedules_by_nim.get(target_offer['nim'], []) if s['group_code'] == target_group), None)
                     if check_schedule_conflict(schedules_by_nim.get(current_offer['nim'], []), target_class_schedule, current_offer['offering_group_code']):
-                        continue # Coba pilihan berikutnya
+                        continue
                     
-                    # --- Penunjuk VALID ditemukan! ---
-                    print(f"  - [VALID] Penawaran #{current_pref_id} (milik {current_offer['nim']}) menunjuk ke Penawaran #{target_pref_id} (milik {target_offer['nim']}) via pilihan '{target_group}'")
+                    print(f"  - [GRAPH] Penawaran #{current_pref_id} (NIM {current_offer['nim']}) menunjuk ke Penawaran #{target_pref_id} (NIM {target_offer['nim']})")
                     G.add_edge(current_pref_id, target_pref_id)
-                    successful_pointers[current_pref_id] = choice # Simpan info skor
-                    
-                    # Berhenti mencoba pilihan lain untuk penawaran ini, karena sudah dapat panah
+                    successful_pointers[current_pref_id] = choice
                     break
+            
+            # Visualisasi dan penyimpanan graf
+            if G.number_of_nodes() > 0:
+                plt.figure(figsize=(10, 8))
+                pos = nx.circular_layout(G)
+                # Label untuk node: ID Penawaran dan NIM pemilik
+                labels = {node: f"#{node}\n(NIM: {prefs_data[node]['nim']})" for node in G.nodes()}
+                nx.draw(G, pos, labels=labels, with_labels=True, node_color='skyblue', node_size=2500,
+                        edge_color='gray', font_size=10, font_weight='bold', arrowsize=20)
+                plt.title(f"Graf Pertukaran - Iterasi {iteration}", size=15)
+                
+                # Pastikan folder 'static' ada
+                if not os.path.exists('static'):
+                    os.makedirs('static')
+                
+                graph_filename = f'static/graf_iterasi_{iteration}.png'
+                plt.savefig(graph_filename)
+                plt.close() # Tutup figure agar tidak ditampilkan di server console
+                print(f"  - [VISUAL] Graf untuk iterasi {iteration} disimpan di '{graph_filename}'"); sys.stdout.flush()
 
             cycles = list(nx.simple_cycles(G))
             if not cycles:
                 print("[INFO] Tidak ditemukan siklus yang valid. Proses tukar berhenti."); sys.stdout.flush()
                 break
-
+            
             print(f"[INFO] Ditemukan {len(cycles)} siklus: {cycles}"); sys.stdout.flush()
-
             swapped_prefs_this_iter = set()
             for cycle in cycles:
-                if any(p_id in swapped_prefs_this_iter for p_id in cycle):
-                    continue
-
+                if any(p_id in swapped_prefs_this_iter for p_id in cycle): continue
                 for i, current_pref_id in enumerate(cycle):
                     next_pref_id = cycle[(i + 1) % len(cycle)]
-                    
                     nim_to_update = prefs_data[current_pref_id]['nim']
                     old_enrollment_id = prefs_data[current_pref_id]['offering_enrollment_id']
                     old_class_id = prefs_data[current_pref_id]['offering_class_id']
-                    
-                    # Ambil skor dari pilihan yang berhasil
                     score = successful_pointers[current_pref_id]['skor']
-                    
                     new_class_id = prefs_data[next_pref_id]['offering_class_id']
-                    
                     cursor.execute("UPDATE enrollments SET class_id=%s WHERE id=%s", (new_class_id, old_enrollment_id))
                     cursor.execute("INSERT INTO swap_results (nim, before_class_id, after_class_id, score_points) VALUES (%s,%s,%s,%s)", (nim_to_update, old_class_id, new_class_id, score))
-                    
-                    print(f"  - [SWAP] {nim_to_update}: kelas lama id {old_class_id} -> kelas baru id {new_class_id} dengan skor {score} (via Penawaran #{current_pref_id})"); sys.stdout.flush()
+                    print(f"  - [SWAP] {nim_to_update}: kelas id {old_class_id} -> {new_class_id} (Skor: {score})"); sys.stdout.flush()
                     swapped_prefs_this_iter.add(current_pref_id)
 
             for pref_id in swapped_prefs_this_iter:
                 participants.discard(pref_id)
                 pref_to_delete = prefs_data.pop(pref_id, None)
                 if pref_to_delete:
-                    # Hapus dari DB agar tidak dipertimbangkan di iterasi/run berikutnya
                     cursor.execute("DELETE FROM pref_courses WHERE preference_id = %s", (pref_id,))
                     cursor.execute("DELETE FROM preferences WHERE id = %s", (pref_id,))
             
-            # Update data jadwal setelah swap untuk validasi di iterasi berikutnya
             cursor.execute("SELECT nim, group_code, day, start_time, end_time, course_name FROM enrollments e JOIN course_classes cc ON e.class_id = cc.id")
             schedules_by_nim = {}
             for row in fetch_all_as_dict(cursor):
@@ -183,5 +167,15 @@ def run_ttc_swap(db_connection):
             print(f"\n[INFO] Mahasiswa yang tidak berhasil menukarkan sisa kelasnya: {list(remaining_nims)}"); sys.stdout.flush()
 
     finally:
+        #Pengukuran akhir dan cetak hasil kinerja
+        end_time = time.perf_counter()
+        mem_after = process.memory_info().rss / (1024 * 1024) # Konversi ke MB
+        duration = end_time - start_time
+        
+        print("\n--- [PERFORMANCE REPORT] ---"); sys.stdout.flush()
+        print(f"  - Waktu Komputasi Total : {duration:.4f} detik"); sys.stdout.flush()
+        print(f"  - Penggunaan Memori Awal: {mem_before:.2f} MB"); sys.stdout.flush()
+        print(f"  - Penggunaan Memori Akhir: {mem_after:.2f} MB"); sys.stdout.flush()
+        print(f"  - Memori yang Digunakan : {(mem_after - mem_before):.2f} MB"); sys.stdout.flush()
         print("--- [LOG END] Proses pertukaran jadwal selesai ---"); sys.stdout.flush()
         if 'cursor' in locals() and cursor: cursor.close()
