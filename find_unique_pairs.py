@@ -3,7 +3,7 @@ from datetime import datetime
 import os
 import networkx as nx
 
-def generate_optimal_best_case_sql(input_csv_filename='../CSV/if2022.csv', output_sql_filename='./bulk/final_best_case_50_max.sql'):
+def generate_optimal_best_case_sql(input_csv_filename='../CSV/if2022_2023_2024.csv', output_sql_filename='./bulk/2022_2023_2024.sql'):
     """
     Menggunakan algoritma Maximum Cardinality Matching untuk menemukan set pasangan
     terbaik yang paling optimal dan menghasilkan MAKSIMAL 50 pasangan (100 permintaan).

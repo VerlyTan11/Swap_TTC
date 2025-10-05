@@ -51,4 +51,4 @@ def create_base_sql_script(input_csv, output_sql):
     print(f"Selesai! Skrip data dasar telah dibuat di '{output_sql}'.")
 
 if __name__ == "__main__":
-    create_base_sql_script(input_csv='../CSV/if2022.csv', output_sql='./bulk/setup_database.sql')
+    create_base_sql_script(input_csv='../CSV/if2022_2023_2024.csv', output_sql='./bulk/setup_database.sql')
