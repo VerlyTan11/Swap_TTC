@@ -88,34 +88,100 @@ def day_to_number(day_name):
 # --- PAGE 1: DASHBOARD & PEMILIHAN PREFERENSI ---
 @app.route('/dashboard', methods=['GET', 'POST'])
 def dashboard():
+    # Cek sesi login
     if 'nim' not in session:
         return redirect(url_for('login'))
+
+    # Buka koneksi database
     conn = get_db_connection()
     if not conn:
         flash('Koneksi database gagal.', 'danger')
-        return render_template('dashboard.html', schedule=[], all_classes=[])
+        # Sediakan variabel default agar template tidak error
+        return render_template('dashboard.html', schedule=[], all_classes=[], all_preferences={})
+    
     cursor = conn.cursor(dictionary=True)
-    query_jadwal = """
-        SELECT e.id AS enrollment_id, cc.course_code, cc.course_name, cc.class_name, 
-               cc.day, cc.start_time, cc.end_time
-        FROM enrollments e
-        JOIN course_classes cc ON e.class_id = cc.id
-        WHERE e.nim = %s
-    """
-    cursor.execute(query_jadwal, (session['nim'],))
-    user_schedule = cursor.fetchall()
-    # Urutkan jadwal berdasar hari dan jam mulai (Senin pagi dulu)
-    user_schedule.sort(key=lambda x: (day_to_number(x['day']), x['start_time']))
-    query_all_classes = """
-        SELECT id, course_code, course_name, class_name, day, start_time, end_time
-        FROM course_classes
-        WHERE id NOT IN (SELECT class_id FROM enrollments WHERE nim = %s)
-    """
-    cursor.execute(query_all_classes, (session['nim'],))
-    all_classes = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    return render_template('dashboard.html', schedule=user_schedule, all_classes=all_classes)
+
+    # --- [LOGIKA BARU] Tampilan untuk Admin ---
+    if session.get('role') == 'admin':
+        # Query yang lebih tangguh menggunakan LEFT JOIN
+        admin_query = """
+            SELECT
+                p.nim,
+                s.name,
+                cc_offer.course_name AS offered_course,
+                cc_offer.class_name AS offered_class,
+                pc.urutan,
+                pc.skor,
+                cc_target.course_name AS target_course,
+                cc_target.class_name AS target_class
+            FROM preferences p
+            JOIN students s ON p.nim = s.nim
+            JOIN enrollments e ON p.swap_course = e.id
+            JOIN course_classes cc_offer ON e.class_id = cc_offer.id
+            JOIN pref_courses pc ON p.id = pc.preference_id
+            -- Menggunakan LEFT JOIN agar preferensi tetap tampil meskipun targetnya tidak valid
+            LEFT JOIN course_classes cc_target ON pc.group_code = cc_target.group_code
+            ORDER BY p.nim, pc.urutan;
+        """
+        cursor.execute(admin_query)
+        all_prefs_raw = cursor.fetchall()
+        
+        # Proses data mentah menjadi dictionary yang terstruktur
+        all_preferences = {}
+        for row in all_prefs_raw:
+            nim = row['nim']
+            if nim not in all_preferences:
+                all_preferences[nim] = {
+                    'name': row['name'],
+                    'offered_course': f"{row['offered_course']} ({row['offered_class']})",
+                    'preferred_courses': []
+                }
+            
+            # Jika target_course kosong (karena LEFT JOIN gagal), beri pesan
+            target_display = f"{row['target_course']} ({row['target_class']})" if row['target_course'] else "Kelas Target Tidak Valid/Ditemukan"
+            
+            all_preferences[nim]['preferred_courses'].append({
+                'urutan': row['urutan'],
+                'skor': row['skor'],
+                'target': target_display
+            })
+        
+        cursor.close()
+        conn.close()
+        # Kirim data preferensi yang sudah terstruktur ke template
+        return render_template('dashboard.html', all_preferences=all_preferences)
+
+    # --- Tampilan untuk Mahasiswa (dengan perbaikan format waktu) ---
+    else:
+        # Query untuk jadwal mahasiswa saat ini
+        query_jadwal = """
+            SELECT e.id AS enrollment_id, cc.course_code, cc.course_name, cc.class_name, 
+                   cc.day, 
+                   TIME_FORMAT(cc.start_time, '%H:%i') AS start_time, 
+                   TIME_FORMAT(cc.end_time, '%H:%i') AS end_time
+            FROM enrollments e
+            JOIN course_classes cc ON e.class_id = cc.id
+            WHERE e.nim = %s
+        """
+        cursor.execute(query_jadwal, (session['nim'],))
+        user_schedule = cursor.fetchall()
+        user_schedule.sort(key=lambda x: (day_to_number(x['day']), str(x['start_time'])))
+        
+        # Query untuk semua kelas lain yang bisa dipilih
+        query_all_classes = """
+            SELECT id, course_code, course_name, class_name, day, 
+                   TIME_FORMAT(start_time, '%H:%i') AS start_time, 
+                   TIME_FORMAT(end_time, '%H:%i') AS end_time
+            FROM course_classes
+            WHERE id NOT IN (SELECT class_id FROM enrollments WHERE nim = %s)
+        """
+        cursor.execute(query_all_classes, (session['nim'],))
+        all_classes = cursor.fetchall()
+        
+        cursor.close()
+        conn.close()
+        return render_template('dashboard.html', schedule=user_schedule, all_classes=all_classes)
+
 
 # --- PROSES SIMPAN PREFERENSI ---
 @app.route('/save_preferences', methods=['POST'])
