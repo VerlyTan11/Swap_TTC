@@ -3,9 +3,53 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h3>Dashboard Pertukaran Jadwal</h3>
+
+    {% if session.role == 'admin' %}
+    <a href="{{ url_for('run_ttc') }}" class="btn btn-success">Jalankan Algoritma TTC & Lihat Hasil</a>
+    {% else %}
     <a href="{{ url_for('results') }}" class="btn btn-info">Lihat Hasil Pertukaran</a>
+    {% endif %}
 </div>
 
+<!-- [LOGIKA UTAMA] Tampilkan blok ini hanya untuk admin -->
+{% if session.role == 'admin' %}
+<hr>
+<h4>Daftar Preferensi Mahasiswa Aktif</h4>
+
+{% if all_preferences %}
+<div class="accordion" id="prefsAccordion">
+    {% for nim, data in all_preferences.items() %}
+    <div class="accordion-item">
+        <h2 class="accordion-header" id="heading-{{ nim }}">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                data-bs-target="#collapse-{{ nim }}" aria-expanded="false" aria-controls="collapse-{{ nim }}">
+                <strong>{{ data.name }} ({{ nim }})</strong> &nbsp;- Menawarkan:&nbsp; <span class="text-danger">{{
+                    data.offered_course }}</span>
+            </button>
+        </h2>
+        <div id="collapse-{{ nim }}" class="accordion-collapse collapse" aria-labelledby="heading-{{ nim }}"
+            data-bs-parent="#prefsAccordion">
+            <div class="accordion-body">
+                <h5>Menginginkan:</h5>
+                <ul class="list-group">
+                    {% for pref in data.preferred_courses %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        {{ pref.urutan }}. <span class="text-success">{{ pref.target }}</span>
+                        <span class="badge bg-primary rounded-pill">Skor: {{ pref.skor }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-info mt-3">Belum ada mahasiswa yang memasukkan preferensi.</div>
+{% endif %}
+
+<!-- Tampilkan formulir ini hanya untuk mahasiswa -->
+{% else %}
 <form action="{{ url_for('save_preferences') }}" method="POST" id="preferenceForm">
     <div class="row">
         <div class="col-md-5">
@@ -65,6 +109,7 @@
         </div>
     </div>
 
+    <!-- Bagian Preview -->
     <hr>
     <div class="row justify-content-center mt-3">
         <div class="col-md-8">
@@ -88,7 +133,7 @@
     <input type="hidden" name="preferred_classes_ordered" id="preferred_classes_ordered">
 
     <div class="text-center mt-4">
-        <button type="submit" class="btn btn-primary btn-lg mb-2">Simpan Preferensi</button>
+        <button type="submit" class="btn btn-primary btn-lg">Simpan Preferensi</button>
     </div>
 </form>
 
@@ -104,14 +149,10 @@
 
         let preferredOrder = [];
 
-        // Fungsi untuk memperbarui tampilan preview
         function updatePreview() {
-            // Update preview kelas yang ditawar
             const selectedRadio = document.querySelector('input[name="enrollment_to_swap"]:checked');
             offerPreview.textContent = selectedRadio ? selectedRadio.dataset.courseName : '-- Belum dipilih --';
-
-            // Update preview urutan preferensi
-            prefsPreview.innerHTML = ''; // Kosongkan list
+            prefsPreview.innerHTML = '';
             if (preferredOrder.length > 0) {
                 preferredOrder.forEach((item, index) => {
                     const li = document.createElement('li');
@@ -119,40 +160,31 @@
                     prefsPreview.appendChild(li);
                 });
             } else {
-                prefsPreview.appendChild(noPrefsMsg);
+                prefsPreview.innerHTML = '<li id="no-prefs-msg">-- Belum ada preferensi yang dipilih --</li>';
             }
         }
 
-        // Tambahkan event listener untuk setiap radio button
-        offerRadios.forEach(radio => {
-            radio.addEventListener('change', updatePreview);
-        });
-
-        // Tambahkan event listener untuk setiap checkbox
+        offerRadios.forEach(radio => radio.addEventListener('change', updatePreview));
         prefCheckboxes.forEach(checkbox => {
             checkbox.addEventListener('change', function () {
                 const classId = this.value;
                 const className = this.dataset.courseName;
-
                 if (this.checked) {
-                    // Jika dicentang, tambahkan ke akhir urutan
                     preferredOrder.push({ id: classId, name: className });
                 } else {
-                    // Jika centang dihilangkan, hapus dari urutan
                     preferredOrder = preferredOrder.filter(item => item.id !== classId);
                 }
                 updatePreview();
             });
         });
 
-        // Sebelum form di-submit, isi input tersembunyi dengan urutan ID
         form.addEventListener('submit', function (e) {
             const orderedIds = preferredOrder.map(item => item.id);
             hiddenInput.value = orderedIds.join(',');
         });
 
-        // Inisialisasi preview saat halaman dimuat
         updatePreview();
     });
 </script>
+{% endif %}
 {% endblock %}

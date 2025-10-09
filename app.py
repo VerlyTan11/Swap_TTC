@@ -34,24 +34,19 @@ def login():
         nim = request.form['nim']
         password = request.form['password']
 
-        # --- VALIDASI ADMIN SECARA LANGSUNG (HARDCODE) ---
-        # Ganti 'admin' dan '1234' dengan username & password yang Anda inginkan
         if nim == 'admin' and password == '1234':
             session['nim'] = nim
-            session['name'] = 'Administrator' # Nama bisa di-set statis
+            session['name'] = 'Administrator'
             session['role'] = 'admin'
             flash('Login sebagai Administrator berhasil!', 'info')
             return redirect(url_for('dashboard'))
-        # --- AKHIR VALIDASI ADMIN ---
 
-        # Jika bukan admin, lanjutkan cek ke database untuk mahasiswa biasa
         conn = get_db_connection()
         if not conn:
             flash('Koneksi database gagal. Silakan coba lagi nanti.', 'danger')
             return render_template('login.html')
             
         cursor = conn.cursor(dictionary=True)
-        # Query ini tidak perlu diubah
         cursor.execute('SELECT * FROM students WHERE nim = %s AND password = %s', (nim, password))
         student = cursor.fetchone()
         
@@ -74,59 +69,38 @@ def logout():
     return redirect(url_for('login'))
 
 def day_to_number(day_name):
-    days = {
-        'Senin': 1,
-        'Selasa': 2,
-        'Rabu': 3,
-        'Kamis': 4,
-        'Jumat': 5,
-        'Sabtu': 6,
-        'Minggu': 7
-    }
+    days = { 'Senin': 1, 'Selasa': 2, 'Rabu': 3, 'Kamis': 4, 'Jumat': 5, 'Sabtu': 6, 'Minggu': 7 }
     return days.get(day_name, 99)
 
 # --- PAGE 1: DASHBOARD & PEMILIHAN PREFERENSI ---
 @app.route('/dashboard', methods=['GET', 'POST'])
 def dashboard():
-    # Cek sesi login
     if 'nim' not in session:
         return redirect(url_for('login'))
 
-    # Buka koneksi database
     conn = get_db_connection()
     if not conn:
         flash('Koneksi database gagal.', 'danger')
-        # Sediakan variabel default agar template tidak error
-        return render_template('dashboard.html', schedule=[], all_classes=[], all_preferences={})
+        return render_template('dashboard.html', all_preferences={})
     
     cursor = conn.cursor(dictionary=True)
 
-    # --- [LOGIKA BARU] Tampilan untuk Admin ---
     if session.get('role') == 'admin':
-        # Query yang lebih tangguh menggunakan LEFT JOIN
         admin_query = """
             SELECT
-                p.nim,
-                s.name,
-                cc_offer.course_name AS offered_course,
-                cc_offer.class_name AS offered_class,
-                pc.urutan,
-                pc.skor,
-                cc_target.course_name AS target_course,
-                cc_target.class_name AS target_class
+                p.nim, s.name, cc_offer.course_name AS offered_course, cc_offer.class_name AS offered_class,
+                pc.urutan, pc.skor, cc_target.course_name AS target_course, cc_target.class_name AS target_class
             FROM preferences p
             JOIN students s ON p.nim = s.nim
             JOIN enrollments e ON p.swap_course = e.id
             JOIN course_classes cc_offer ON e.class_id = cc_offer.id
             JOIN pref_courses pc ON p.id = pc.preference_id
-            -- Menggunakan LEFT JOIN agar preferensi tetap tampil meskipun targetnya tidak valid
             LEFT JOIN course_classes cc_target ON pc.group_code = cc_target.group_code
             ORDER BY p.nim, pc.urutan;
         """
         cursor.execute(admin_query)
         all_prefs_raw = cursor.fetchall()
         
-        # Proses data mentah menjadi dictionary yang terstruktur
         all_preferences = {}
         for row in all_prefs_raw:
             nim = row['nim']
@@ -136,24 +110,14 @@ def dashboard():
                     'offered_course': f"{row['offered_course']} ({row['offered_class']})",
                     'preferred_courses': []
                 }
-            
-            # Jika target_course kosong (karena LEFT JOIN gagal), beri pesan
             target_display = f"{row['target_course']} ({row['target_class']})" if row['target_course'] else "Kelas Target Tidak Valid/Ditemukan"
-            
-            all_preferences[nim]['preferred_courses'].append({
-                'urutan': row['urutan'],
-                'skor': row['skor'],
-                'target': target_display
-            })
+            all_preferences[nim]['preferred_courses'].append({'urutan': row['urutan'], 'skor': row['skor'], 'target': target_display})
         
         cursor.close()
         conn.close()
-        # Kirim data preferensi yang sudah terstruktur ke template
         return render_template('dashboard.html', all_preferences=all_preferences)
 
-    # --- Tampilan untuk Mahasiswa (dengan perbaikan format waktu) ---
     else:
-        # Query untuk jadwal mahasiswa saat ini
         query_jadwal = """
             SELECT e.id AS enrollment_id, cc.course_code, cc.course_name, cc.class_name, 
                    cc.day, 
@@ -167,7 +131,6 @@ def dashboard():
         user_schedule = cursor.fetchall()
         user_schedule.sort(key=lambda x: (day_to_number(x['day']), str(x['start_time'])))
         
-        # Query untuk semua kelas lain yang bisa dipilih
         query_all_classes = """
             SELECT id, course_code, course_name, class_name, day, 
                    TIME_FORMAT(start_time, '%H:%i') AS start_time, 
@@ -182,7 +145,6 @@ def dashboard():
         conn.close()
         return render_template('dashboard.html', schedule=user_schedule, all_classes=all_classes)
 
-
 # --- PROSES SIMPAN PREFERENSI ---
 @app.route('/save_preferences', methods=['POST'])
 def save_preferences():
@@ -190,14 +152,12 @@ def save_preferences():
         return redirect(url_for('login'))
 
     enrollment_to_swap = request.form.get('enrollment_to_swap')
-    # [PERUBAHAN 1] Ambil urutan ID dari input tersembunyi yang diisi oleh JavaScript
     preferred_classes_ordered_str = request.form.get('preferred_classes_ordered')
 
     if not enrollment_to_swap or not preferred_classes_ordered_str:
         flash('Anda harus memilih kelas yang akan ditukar dan minimal satu kelas preferensi.', 'warning')
         return redirect(url_for('dashboard'))
 
-    # Ubah string "1,2" menjadi list ['1', '2']
     preferred_classes_ids = preferred_classes_ordered_str.split(',')
     
     conn = get_db_connection()
@@ -207,30 +167,16 @@ def save_preferences():
         
     cursor = conn.cursor()
     try:
-        # Hapus preferensi lama terlebih dahulu
-        # Menggunakan subquery untuk keamanan dan efisiensi
-        cursor.execute("""
-            DELETE pc FROM pref_courses pc
-            JOIN preferences p ON pc.preference_id = p.id
-            WHERE p.nim = %s
-        """, (session['nim'],))
+        cursor.execute("DELETE pc FROM pref_courses pc JOIN preferences p ON pc.preference_id = p.id WHERE p.nim = %s", (session['nim'],))
         cursor.execute("DELETE FROM preferences WHERE nim = %s", (session['nim'],))
-
-        # Masukkan preferensi utama yang baru
-        cursor.execute("INSERT INTO preferences (nim, swap_course) VALUES (%s, %s)", 
-                       (session['nim'], enrollment_to_swap))
+        cursor.execute("INSERT INTO preferences (nim, swap_course) VALUES (%s, %s)", (session['nim'], enrollment_to_swap))
         preference_master_id = cursor.lastrowid
 
-        # Loop melalui ID kelas yang sudah terurut
         for i, class_id in enumerate(preferred_classes_ids):
             urutan = i + 1
-            # [PERUBAHAN 2] Skema skor baru: 100 untuk pertama, 50 untuk kedua, 25 untuk sisanya
-            if urutan == 1:
-                skor = 100
-            elif urutan == 2:
-                skor = 50
-            else:
-                flash(f'Preferensi hanya bisa pilih dua kelas. Preferensi ketiga dan seterusnya diabaikan.', 'warning')
+            if urutan == 1: skor = 100
+            elif urutan == 2: skor = 50
+            else: skor = 25
             
             cursor.execute("SELECT group_code FROM course_classes WHERE id = %s", (class_id,))
             result = cursor.fetchone()
@@ -255,11 +201,9 @@ def run_ttc():
     if 'nim' not in session:
         return redirect(url_for('login'))
         
-    # --- TAMBAHKAN PROTEKSI INI ---
     if session.get('role') != 'admin':
         flash('Hanya admin yang dapat menjalankan algoritma.', 'danger')
         return redirect(url_for('dashboard'))
-    # --- END PROTEKSI ---
 
     try:
         conn = get_db_connection()
@@ -289,9 +233,7 @@ def results():
     unsuccessful_swaps = []
     average_satisfaction = 0
 
-    # --- LOGIKA BERDASARKAN ROLE ---
     if session.get('role') == 'admin':
-        # Admin melihat semua data
         query_success = """
             SELECT sr.nim, s.name, sr.score_points, 
                    before_cc.course_name AS before_course, before_cc.class_name AS before_class,
@@ -317,7 +259,6 @@ def results():
         average_satisfaction = avg_result['avg_score'] if avg_result and avg_result['avg_score'] else 0
 
     else:
-        # Mahasiswa hanya melihat datanya sendiri
         nim = session['nim']
         query_success_user = """
             SELECT sr.nim, s.name, sr.score_points, 
@@ -332,7 +273,6 @@ def results():
         cursor.execute(query_success_user, (nim,))
         successful_swaps = cursor.fetchall()
 
-        # Cek jika mahasiswa berpartisipasi tapi gagal
         if not successful_swaps:
             query_unsuccessful_user = """
                 SELECT s.nim, s.name FROM preferences p
@@ -342,7 +282,6 @@ def results():
             cursor.execute(query_unsuccessful_user, (nim,))
             unsuccessful_swaps = cursor.fetchall()
         
-        # Kepuasan adalah skor miliknya sendiri
         if successful_swaps:
             average_satisfaction = successful_swaps[0]['score_points']
 
@@ -363,15 +302,21 @@ def details(nim):
     if not conn:
         flash('Koneksi database gagal.', 'danger')
         return redirect(url_for('results'))
-    cursor = conn.cursor(dictionary=True)
+        
+    # [PERBAIKAN 1] Gunakan buffered cursor untuk mencegah error 'Unread result'
+    cursor = conn.cursor(dictionary=True, buffered=True)
 
-    # === [PERUBAHAN 4] Query untuk detail disesuaikan dengan skema baru ===
+    # [PERBAIKAN 2] Gunakan TIME_FORMAT untuk menampilkan waktu dengan benar
     query_detail = """
         SELECT sr.nim, s.name,
                b_cc.course_code AS before_code, b_cc.course_name AS before_name, b_cc.class_name AS before_class, 
-               b_cc.day AS before_day, b_cc.start_time AS before_start, b_cc.end_time AS before_end,
+               b_cc.day AS before_day, 
+               TIME_FORMAT(b_cc.start_time, '%H:%i') AS before_start, 
+               TIME_FORMAT(b_cc.end_time, '%H:%i') AS before_end,
                a_cc.course_code AS after_code, a_cc.course_name AS after_name, a_cc.class_name AS after_class,
-               a_cc.day AS after_day, a_cc.start_time AS after_start, a_cc.end_time AS after_end
+               a_cc.day AS after_day, 
+               TIME_FORMAT(a_cc.start_time, '%H:%i') AS after_start, 
+               TIME_FORMAT(a_cc.end_time, '%H:%i') AS after_end
         FROM swap_results sr
         JOIN students s ON sr.nim = s.nim
         JOIN course_classes b_cc ON sr.before_class_id = b_cc.id
@@ -392,7 +337,6 @@ def details(nim):
 
 @app.route('/export_report_excel')
 def export_report_excel():
-    # Proteksi: Pastikan hanya admin yang bisa mengakses
     if 'nim' not in session or session.get('role') != 'admin':
         flash('Akses ditolak.', 'danger')
         return redirect(url_for('dashboard'))
@@ -403,8 +347,6 @@ def export_report_excel():
             flash('Koneksi database gagal.', 'danger')
             return redirect(url_for('results'))
 
-        # --- Query 1: Untuk Sheet "Hasil Pertukaran" ---
-        # [PERBAIKAN] Kolom 'Nama Mahasiswa' dihapus
         query_results = """
             SELECT 
                 sr.nim AS 'NIM',
@@ -419,16 +361,11 @@ def export_report_excel():
         """
         df_results = pd.read_sql(query_results, conn)
 
-        # --- Query 2: Untuk Sheet "Jadwal Final Lengkap" ---
-        # [PERBAIKAN] Kolom 'Nama Mahasiswa' dihapus dan format waktu diperbaiki
         query_final_schedule = """
             SELECT
-                s.nim AS 'NIM',
-                s.major AS 'Jurusan',
-                cc.course_code AS 'Kode MK',
-                cc.course_name AS 'Nama Mata Kuliah',
-                cc.class_name AS 'Kelas',
-                cc.day AS 'Hari',
+                s.nim AS 'NIM', s.major AS 'Jurusan',
+                cc.course_code AS 'Kode MK', cc.course_name AS 'Nama Mata Kuliah',
+                cc.class_name AS 'Kelas', cc.day AS 'Hari',
                 TIME_FORMAT(cc.start_time, '%H:%i') AS 'Jam Mulai',
                 TIME_FORMAT(cc.end_time, '%H:%i') AS 'Jam Selesai'
             FROM enrollments e
@@ -437,12 +374,13 @@ def export_report_excel():
             ORDER BY s.nim, FIELD(cc.day, 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'), cc.start_time;
         """
         df_schedule = pd.read_sql(query_final_schedule, conn)
-
+    except Exception as e:
+        flash(f"Terjadi kesalahan saat ekspor: {e}", "danger")
+        return redirect(url_for('results'))
     finally:
         if conn and conn.is_connected():
             conn.close()
 
-    # --- Proses Pembuatan File Excel di Memori (Tidak ada perubahan di sini) ---
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df_results.to_excel(writer, sheet_name='Hasil Pertukaran', index=False)
