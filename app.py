@@ -190,12 +190,16 @@ def save_preferences():
         return redirect(url_for('login'))
 
     enrollment_to_swap = request.form.get('enrollment_to_swap')
-    preferred_classes_ids = request.form.getlist('preferred_classes')
+    # [PERUBAHAN 1] Ambil urutan ID dari input tersembunyi yang diisi oleh JavaScript
+    preferred_classes_ordered_str = request.form.get('preferred_classes_ordered')
 
-    if not enrollment_to_swap or not preferred_classes_ids:
+    if not enrollment_to_swap or not preferred_classes_ordered_str:
         flash('Anda harus memilih kelas yang akan ditukar dan minimal satu kelas preferensi.', 'warning')
         return redirect(url_for('dashboard'))
 
+    # Ubah string "1,2" menjadi list ['1', '2']
+    preferred_classes_ids = preferred_classes_ordered_str.split(',')
+    
     conn = get_db_connection()
     if not conn:
         flash('Koneksi database gagal.', 'danger')
@@ -203,19 +207,38 @@ def save_preferences():
         
     cursor = conn.cursor()
     try:
+        # Hapus preferensi lama terlebih dahulu
+        # Menggunakan subquery untuk keamanan dan efisiensi
+        cursor.execute("""
+            DELETE pc FROM pref_courses pc
+            JOIN preferences p ON pc.preference_id = p.id
+            WHERE p.nim = %s
+        """, (session['nim'],))
         cursor.execute("DELETE FROM preferences WHERE nim = %s", (session['nim'],))
+
+        # Masukkan preferensi utama yang baru
         cursor.execute("INSERT INTO preferences (nim, swap_course) VALUES (%s, %s)", 
                        (session['nim'], enrollment_to_swap))
         preference_master_id = cursor.lastrowid
+
+        # Loop melalui ID kelas yang sudah terurut
         for i, class_id in enumerate(preferred_classes_ids):
             urutan = i + 1
-            skor = 100 if urutan == 1 else (75 if urutan == 2 else (50 if urutan == 3 else 25))
+            # [PERUBAHAN 2] Skema skor baru: 100 untuk pertama, 50 untuk kedua, 25 untuk sisanya
+            if urutan == 1:
+                skor = 100
+            elif urutan == 2:
+                skor = 50
+            else:
+                flash(f'Preferensi hanya bisa pilih dua kelas. Preferensi ketiga dan seterusnya diabaikan.', 'warning')
+            
             cursor.execute("SELECT group_code FROM course_classes WHERE id = %s", (class_id,))
             result = cursor.fetchone()
             if result:
                 group_code = result[0]
                 sql_insert_detail = "INSERT INTO pref_courses (preference_id, urutan, skor, group_code) VALUES (%s, %s, %s, %s)"
                 cursor.execute(sql_insert_detail, (preference_master_id, urutan, skor, group_code))
+                
         conn.commit()
         flash('Preferensi Anda berhasil disimpan!', 'success')
     except mysql.connector.Error as err:

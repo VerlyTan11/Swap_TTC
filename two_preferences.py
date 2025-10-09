@@ -4,9 +4,9 @@ import os
 import networkx as nx
 import random
 
-def generate_second_pref_success_sql(input_csv_filename='../CSV/if2022.csv', output_sql_filename='./bulk/2022_2.sql'):
+def generate_second_pref_success_sql(input_csv_filename='../CSV/if2022_2023_2024.csv', output_sql_filename='./bulk/scenario_pref2_success.sql'):
     """
-    Membuat skenario di mana 70 mahasiswa (35 pasangan) berhasil bertukar
+    Membuat skenario di mana 70 mahasiswa (35 pasangan) dijamin berhasil bertukar
     berdasarkan preferensi KEDUA mereka.
     """
     TARGET_PAIRS = 35
