@@ -36,7 +36,6 @@ def login():
 
         if nim == 'admin' and password == '1234':
             session['nim'] = nim
-            session['name'] = 'Administrator'
             session['role'] = 'admin'
             flash('Login sebagai Administrator berhasil!', 'info')
             return redirect(url_for('dashboard'))
@@ -55,7 +54,6 @@ def login():
         
         if student:
             session['nim'] = student['nim']
-            session['name'] = student['name']
             session['role'] = 'student'
             return redirect(url_for('dashboard'))
         else:
@@ -88,7 +86,7 @@ def dashboard():
     if session.get('role') == 'admin':
         admin_query = """
             SELECT
-                p.nim, s.name, cc_offer.course_name AS offered_course, cc_offer.class_name AS offered_class,
+                p.nim, cc_offer.course_name AS offered_course, cc_offer.class_name AS offered_class,
                 pc.urutan, pc.skor, cc_target.course_name AS target_course, cc_target.class_name AS target_class
             FROM preferences p
             JOIN students s ON p.nim = s.nim
@@ -106,7 +104,6 @@ def dashboard():
             nim = row['nim']
             if nim not in all_preferences:
                 all_preferences[nim] = {
-                    'name': row['name'],
                     'offered_course': f"{row['offered_course']} ({row['offered_class']})",
                     'preferred_courses': []
                 }
@@ -235,7 +232,7 @@ def results():
 
     if session.get('role') == 'admin':
         query_success = """
-            SELECT sr.nim, s.name, sr.score_points, 
+            SELECT sr.nim, sr.score_points, 
                    before_cc.course_name AS before_course, before_cc.class_name AS before_class,
                    after_cc.course_name AS after_course, after_cc.class_name AS after_class
             FROM swap_results sr
@@ -247,7 +244,7 @@ def results():
         successful_swaps = cursor.fetchall()
 
         query_unsuccessful = """
-            SELECT s.nim, s.name FROM preferences p
+            SELECT s.nim FROM preferences p
             JOIN students s ON p.nim = s.nim
             WHERE p.nim NOT IN (SELECT nim FROM swap_results)
         """
@@ -261,7 +258,7 @@ def results():
     else:
         nim = session['nim']
         query_success_user = """
-            SELECT sr.nim, s.name, sr.score_points, 
+            SELECT sr.nim, sr.score_points, 
                    before_cc.course_name AS before_course, before_cc.class_name AS before_class,
                    after_cc.course_name AS after_course, after_cc.class_name AS after_class
             FROM swap_results sr
@@ -275,7 +272,7 @@ def results():
 
         if not successful_swaps:
             query_unsuccessful_user = """
-                SELECT s.nim, s.name FROM preferences p
+                SELECT s.nim FROM preferences p
                 JOIN students s ON p.nim = s.nim
                 WHERE p.nim = %s AND p.nim NOT IN (SELECT nim FROM swap_results)
             """
@@ -308,7 +305,7 @@ def details(nim):
 
     # [PERBAIKAN 2] Gunakan TIME_FORMAT untuk menampilkan waktu dengan benar
     query_detail = """
-        SELECT sr.nim, s.name,
+        SELECT sr.nim,
                b_cc.course_code AS before_code, b_cc.course_name AS before_name, b_cc.class_name AS before_class, 
                b_cc.day AS before_day, 
                TIME_FORMAT(b_cc.start_time, '%H:%i') AS before_start, 

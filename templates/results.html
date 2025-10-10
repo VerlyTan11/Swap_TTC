@@ -57,7 +57,6 @@
         {% for swap in successful_swaps %}
         <tr>
             <td>{{ swap.nim }}</td>
-            <td>{{ swap.name }}</td>
             <td>{{ swap.before_course }} ({{ swap.before_class }})</td>
             <td>{{ swap.after_course }} ({{ swap.after_class }})</td>
             <td>{{ swap.score_points if session.role == 'admin' else average_satisfaction }}</td>
@@ -82,7 +81,7 @@
 {% if unsuccessful_swaps %}
 <ul class="list-group">
     {% for student in unsuccessful_swaps %}
-    <li class="list-group-item">{{ student.name }} ({{ student.nim }})</li>
+    <li class="list-group-item">({{ student.nim }})</li>
     {% endfor %}
 </ul>
 {% else %}
