@@ -86,6 +86,7 @@ def run_ttc_swap(db_connection):
         # [PERUBAHAN] Hitung jumlah mahasiswa unik yang berpartisipasi
         initial_nims = {pref['nim'] for pref in prefs_data.values()}
         total_participants = len(initial_nims)
+        total_requested_swaps = len(prefs_data)
 
         cursor.execute("SELECT nim, group_code, day, start_time, end_time, course_name FROM enrollments e JOIN course_classes cc ON e.class_id = cc.id")
         schedules_by_nim = {}
@@ -95,6 +96,7 @@ def run_ttc_swap(db_connection):
         
         participants = set(prefs_data.keys())
         print(f"[INFO] Jumlah mahasiswa berpartisipasi: {total_participants}"); sys.stdout.flush()
+        print(f"[INFO] Total kelas                    : {total_requested_swaps}"); sys.stdout.flush()
 
         iteration = 1
         while participants:
@@ -188,14 +190,15 @@ def run_ttc_swap(db_connection):
 
         print("\n--- [STATISTICS REPORT] ---"); sys.stdout.flush()
         print(f"  - Total Mahasiswa Partisipasi: {total_participants}"); sys.stdout.flush()
-        print(f"  - Mahasiswa Berhasil Tukar  : {successful_count}"); sys.stdout.flush()
-        print(f"  - Mahasiswa Tidak Berhasil  : {unsuccessful_count}"); sys.stdout.flush()
-        print(f"  - Persentase Keberhasilan   : {success_percentage:.2f}%"); sys.stdout.flush()
+        print(f"  - Total kelas                : {total_requested_swaps}"); sys.stdout.flush()
+        print(f"  - Mahasiswa Berhasil Tukar   : {successful_count}"); sys.stdout.flush()
+        print(f"  - Mahasiswa Tidak Berhasil   : {unsuccessful_count}"); sys.stdout.flush()
+        print(f"  - Persentase Keberhasilan    : {success_percentage:.2f}%"); sys.stdout.flush()
         
         print("\n--- [PERFORMANCE REPORT] ---"); sys.stdout.flush()
-        print(f"  - Waktu Komputasi Total : {duration:.4f} detik"); sys.stdout.flush()
-        print(f"  - Penggunaan Memori Awal: {mem_before:.2f} MB"); sys.stdout.flush()
-        print(f"  - Penggunaan Memori Akhir: {mem_after:.2f} MB"); sys.stdout.flush()
-        print(f"  - Memori yang Digunakan : {(mem_after - mem_before):.2f} MB"); sys.stdout.flush()
+        print(f"  - Waktu Komputasi Total      : {duration:.4f} detik"); sys.stdout.flush()
+        print(f"  - Penggunaan Memori Awal     : {mem_before:.2f} MB"); sys.stdout.flush()
+        print(f"  - Penggunaan Memori Akhir    : {mem_after:.2f} MB"); sys.stdout.flush()
+        print(f"  - Memori yang Digunakan      : {(mem_after - mem_before):.2f} MB"); sys.stdout.flush()
         print("--- [LOG END] Proses pertukaran jadwal selesai ---"); sys.stdout.flush()
         if 'cursor' in locals() and cursor: cursor.close()

@@ -1,131 +1,134 @@
 import pandas as pd
 from datetime import datetime
 import os
-import networkx as nx
 import random
 
-def generate_second_pref_success_sql(input_csv_filename='../CSV/if2022_2023_2024.csv', output_sql_filename='./bulk/scenario_pref2_success.sql'):
+
+def rescue_failed_students_active_search(
+    input_csv_filename='../CSV/if2022_2023_2024.csv',
+    output_sql_filename='./bulk/2022_2023_2024_100_2.sql'
+):
     """
-    Membuat skenario di mana 70 mahasiswa (35 pasangan) dijamin berhasil bertukar
-    berdasarkan preferensi KEDUA mereka.
+    Menggunakan pendekatan pencarian aktif untuk memasangkan mahasiswa yang gagal
+    dan menghasilkan skrip SQL tambahan untuk meningkatkan keberhasilan.
     """
-    TARGET_PAIRS = 35
+
+    # Daftar NIM mahasiswa yang gagal
+    failed_nims = [
+        '43591022383', '25170177106', '31511159693', '31757085710', '77869650547', '98772904611', '46130741092', '28479740926', '93953073517', '39421427879', '46313611213', '91973307823', '89811419895', '76431868684', '44254658389', '27330816386', '77240291924', '18545354338', '50056475471', '22753957566', '39951534137', '66376845804', '86099841114', '92669748827', '12240229929', '63858558777', '65876425744', '46080239870'
+    ]
 
     print(f"Membaca file sumber: {input_csv_filename}...")
+
+    # Membaca file CSV dan melakukan normalisasi
     try:
-        df = pd.read_csv(input_csv_filename, engine='python')
+        df = pd.read_csv(input_csv_filename)
         df['id'] = df['id'].astype(str)
+        df['JAM_MULAI'] = pd.to_datetime(df['JAM_MULAI'], format='%H:%M').dt.time
+        df['JAM_SELESAI'] = pd.to_datetime(df['JAM_SELESAI'], format='%H:%M').dt.time
     except Exception as e:
         print(f"Gagal membaca file CSV: {e}")
         return
 
-    df.dropna(subset=['id', 'HARI', 'JAM_MULAI', 'JAM_SELESAI', 'GROUP_CODE'], inplace=True)
-    df['JAM_MULAI'] = pd.to_datetime(df['JAM_MULAI'], format='%H:%M').dt.time
-    df['JAM_SELESAI'] = pd.to_datetime(df['JAM_SELESAI'], format='%H:%M').dt.time
+    # Buat dictionary jadwal untuk semua mahasiswa gagal
+    student_schedules = {
+        nim: df[df['id'] == nim].to_dict('records') for nim in failed_nims
+    }
 
-    print("Mempersiapkan data jadwal mahasiswa...")
-    student_schedules = {student_id: df[df['id'] == student_id].to_dict('records') for student_id in df['id'].unique()}
-    all_offers = list(df.groupby(['id', 'GROUP_CODE']).groups.keys())
-    
-    print("Membangun graf dari semua kemungkinan pertukaran yang valid...")
-    G = nx.Graph()
-    G.add_nodes_from(all_offers)
+    # Buat daftar semua kemungkinan penawaran (nim, detail_kelas)
+    all_failed_offers = []
+    for nim in failed_nims:
+        for course in student_schedules[nim]:
+            all_failed_offers.append((nim, course))
 
-    # (Bagian membangun graf tidak berubah)
-    for i in range(len(all_offers)):
-        for j in range(i + 1, len(all_offers)):
-            student_A_id, offer_A_code = all_offers[i]
-            student_B_id, offer_B_code = all_offers[j]
-            if student_A_id == student_B_id: continue
-            offer_A = next(c for c in student_schedules[student_A_id] if c['GROUP_CODE'] == offer_A_code)
-            offer_B = next(c for c in student_schedules[student_B_id] if c['GROUP_CODE'] == offer_B_code)
+    random.shuffle(all_failed_offers)
+
+    rescued_pairs_data = []
+    used_students = set()
+
+    print(f"Memulai pencarian aktif untuk memasangkan {len(failed_nims)} mahasiswa...")
+
+    # Iterasi melalui setiap kemungkinan penawaran
+    for student_A_id, offer_A in all_failed_offers:
+        if student_A_id in used_students:
+            continue
+
+        # Cari pasangan untuk A dari sisa daftar penawaran
+        for student_B_id, offer_B in all_failed_offers:
+            if student_B_id in used_students or student_B_id == student_A_id:
+                continue
+
+            # --- Validasi Bentrok Timbal Balik ---
+
+            # 1️⃣ Pastikan jadwal B tidak bentrok jika dia mengambil kelas A
             schedule_B = student_schedules[student_B_id]
-            conflict_B = any(c['HARI'] == offer_A['HARI'] and max(c['JAM_MULAI'], offer_A['JAM_MULAI']) < min(c['JAM_SELESAI'], offer_A['JAM_SELESAI']) for c in schedule_B if c['GROUP_CODE'] != offer_B_code)
-            if conflict_B: continue
+            conflict_B = any(
+                c['HARI'] == offer_A['HARI'] and
+                max(c['JAM_MULAI'], offer_A['JAM_MULAI']) < min(c['JAM_SELESAI'], offer_A['JAM_SELESAI'])
+                for c in schedule_B if c['GROUP_CODE'] != offer_B['GROUP_CODE']
+            )
+            if conflict_B:
+                continue
+
+            # 2️⃣ Pastikan jadwal A tidak bentrok jika dia mengambil kelas B
             schedule_A = student_schedules[student_A_id]
-            conflict_A = any(c['HARI'] == offer_B['HARI'] and max(c['JAM_MULAI'], offer_B['JAM_MULAI']) < min(c['JAM_SELESAI'], offer_B['JAM_SELESAI']) for c in schedule_A if c['GROUP_CODE'] != offer_A_code)
-            if not conflict_A: G.add_edge(all_offers[i], all_offers[j])
+            conflict_A = any(
+                c['HARI'] == offer_B['HARI'] and
+                max(c['JAM_MULAI'], offer_B['JAM_MULAI']) < min(c['JAM_SELESAI'], offer_B['JAM_SELESAI'])
+                for c in schedule_A if c['GROUP_CODE'] != offer_A['GROUP_CODE']
+            )
 
-    print(f"Graf dibangun. Menjalankan algoritma matching untuk {TARGET_PAIRS} pasangan...")
-    matching = nx.max_weight_matching(G, maxcardinality=True)
-    
-    if len(matching) < TARGET_PAIRS:
-        print(f"Peringatan: Data hanya memungkinkan untuk membuat {len(matching)} pasangan.")
-    
-    selected_pairs = list(matching)[:TARGET_PAIRS]
+            # Jika tidak ada bentrok, pasangan ditemukan!
+            if not conflict_A:
+                rescued_pairs_data.append({
+                    'nim': student_A_id,
+                    'offered': offer_A['GROUP_CODE'],
+                    'wanted': offer_B['GROUP_CODE']
+                })
+                rescued_pairs_data.append({
+                    'nim': student_B_id,
+                    'offered': offer_B['GROUP_CODE'],
+                    'wanted': offer_A['GROUP_CODE']
+                })
 
-    # --- [LOGIKA KUNCI BARU] Pisahkan partisipan dan non-partisipan ---
-    swapper_nims = set()
-    for offer1, offer2 in selected_pairs:
-        swapper_nims.add(offer1[0])
-        swapper_nims.add(offer2[0])
+                used_students.add(student_A_id)
+                used_students.add(student_B_id)
 
-    all_student_ids = df['id'].unique()
-    non_swapper_nims = [nim for nim in all_student_ids if nim not in swapper_nims]
-    
-    decoy_offers = [offer for offer in all_offers if offer[0] in non_swapper_nims]
-    if not decoy_offers:
-        print("Error: Tidak ada mahasiswa non-partisipan yang bisa dijadikan umpan.")
-        return
+                print(f"✅ Pasangan ditemukan: {student_A_id} <-> {student_B_id}")
+                break  # Hentikan pencarian untuk A, lanjut ke penawaran berikutnya
 
-    final_preferences = []
-    print(f"\nMembuat {len(selected_pairs)*2} permintaan dengan preferensi umpan...")
-    for offer1, offer2 in selected_pairs:
-        student_A, class_A = offer1
-        student_B, class_B = offer2
-
-        # Cari umpan (preferensi #1) yang valid untuk A
-        decoy_A = None
-        random.shuffle(decoy_offers)
-        for decoy_nim, decoy_class_code in decoy_offers:
-            decoy_class = next(c for c in student_schedules[decoy_nim] if c['GROUP_CODE'] == decoy_class_code)
-            conflict = any(c['HARI'] == decoy_class['HARI'] and max(c['JAM_MULAI'], decoy_class['JAM_MULAI']) < min(c['JAM_SELESAI'], decoy_class['JAM_SELESAI']) for c in student_schedules[student_A] if c['GROUP_CODE'] != class_A)
-            if not conflict:
-                decoy_A = decoy_class_code
-                break
-
-        # Cari umpan (preferensi #1) yang valid untuk B
-        decoy_B = None
-        random.shuffle(decoy_offers)
-        for decoy_nim, decoy_class_code in decoy_offers:
-            decoy_class = next(c for c in student_schedules[decoy_nim] if c['GROUP_CODE'] == decoy_class_code)
-            conflict = any(c['HARI'] == decoy_class['HARI'] and max(c['JAM_MULAI'], decoy_class['JAM_MULAI']) < min(c['JAM_SELESAI'], decoy_class['JAM_SELESAI']) for c in student_schedules[student_B] if c['GROUP_CODE'] != class_B)
-            if not conflict:
-                decoy_B = decoy_class_code
-                break
-        
-        # Susun preferensi: [umpan, target asli]
-        final_preferences.append({'nim': student_A, 'offered_group_code': class_A, 'prefs': [decoy_A, class_B]})
-        final_preferences.append({'nim': student_B, 'offered_group_code': class_B, 'prefs': [decoy_B, class_A]})
+    print(f"\nBerhasil menemukan {len(rescued_pairs_data) // 2} pasangan baru.")
 
     # --- Tulis ke file SQL ---
     output_folder = os.path.dirname(output_sql_filename)
-    if output_folder and not os.path.exists(output_folder): os.makedirs(output_folder)
-        
-    print(f"Menulis perintah SQL ke file '{output_sql_filename}'...")
-    with open(output_sql_filename, 'w') as f:
-        f.write(f"-- Skrip SQL untuk skenario sukses di preferensi kedua - {len(final_preferences)} Partisipan\n")
+    if output_folder and not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
+    print(f"Menulis {len(rescued_pairs_data)} permintaan SQL tambahan ke file '{output_sql_filename}'...")
+
+    with open(output_sql_filename, 'w', encoding='utf-8') as f:
+        f.write(f"-- Skrip SQL Tambahan (Metode Pencarian Aktif)\n")
         f.write(f"-- Dihasilkan pada: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-        f.write("SET FOREIGN_KEY_CHECKS = 0;\nTRUNCATE TABLE preferences;\nTRUNCATE TABLE pref_courses;\nSET FOREIGN_KEY_CHECKS = 1;\n\n")
-        
-        for pref_data in final_preferences:
-            nim, offered_group, prefs_list = pref_data['nim'], pref_data['offered_group_code'], pref_data['prefs']
-            
-            f.write(f"INSERT INTO preferences (nim, swap_course) SELECT '{nim}', e.id FROM enrollments e JOIN course_classes cc ON e.class_id = cc.id WHERE e.nim = '{nim}' AND cc.group_code = '{offered_group}';\n")
-            f.write("SET @last_pref_id = LAST_INSERT_ID();\n")
-            
-            # Tulis preferensi pertama (umpan) jika ditemukan
-            if prefs_list[0] is not None:
-                f.write(f"INSERT INTO pref_courses (preference_id, urutan, skor, group_code) VALUES (@last_pref_id, 1, 100, '{prefs_list[0]}');\n")
-            
-            # Tulis preferensi kedua (target asli)
-            if prefs_list[1] is not None:
-                f.write(f"INSERT INTO pref_courses (preference_id, urutan, skor, group_code) VALUES (@last_pref_id, 2, 75, '{prefs_list[1]}');\n\n")
-            else:
-                f.write("\n")
 
-    print("Selesai!")
-    print(f"Silakan buka dan jalankan file '{output_sql_filename}' di MySQL Workbench Anda.")
+        for pref in rescued_pairs_data:
+            sql_pref = (
+                f"INSERT INTO preferences (nim, swap_course) "
+                f"SELECT '{pref['nim']}', e.id FROM enrollments e "
+                f"JOIN course_classes cc ON e.class_id = cc.id "
+                f"WHERE e.nim = '{pref['nim']}' AND cc.group_code = '{pref['offered']}';\n"
+            )
+            f.write(sql_pref)
 
+            sql_pref_course = (
+                f"INSERT INTO pref_courses (preference_id, urutan, skor, group_code) "
+                f"VALUES (LAST_INSERT_ID(), 1, 100, '{pref['wanted']}');\n\n"
+            )
+            f.write(sql_pref_course)
+
+    print("✅ Selesai!")
+    print(f"Silakan tambahkan isi dari '{output_sql_filename}' ke skrip SQL utama Anda atau jalankan secara terpisah.")
+
+
+# Eksekusi utama
 if __name__ == '__main__':
-    generate_second_pref_success_sql()
+    rescue_failed_students_active_search(input_csv_filename='../CSV/if2022_2023_2024.csv')

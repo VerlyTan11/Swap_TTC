@@ -1,6 +1,15 @@
 -- Skrip SQL untuk setup data dasar
 -- Dihasilkan pada: 2025-10-05 11:55:20
 
+SET FOREIGN_KEY_CHECKS = 0;
+TRUNCATE TABLE preferences;
+TRUNCATE TABLE pref_courses;
+TRUNCATE TABLE swap_results;
+TRUNCATE TABLE students;
+TRUNCATE TABLE course_classes;
+TRUNCATE TABLE enrollments;
+SET FOREIGN_KEY_CHECKS = 1;
+
 -- Mengisi tabel students
 INSERT INTO students (nim, major, angkatan, password) VALUES ('46850239362', 'Informatika', 2022, '1234');
 INSERT INTO students (nim, major, angkatan, password) VALUES ('47573927613', 'Informatika', 2022, '1234');

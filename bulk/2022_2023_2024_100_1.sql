@@ -307,9 +307,6 @@ INSERT INTO pref_courses (preference_id, urutan, skor, group_code) VALUES (LAST_
 INSERT INTO preferences (nim, swap_course) SELECT '92575408051', e.id FROM enrollments e JOIN course_classes cc ON e.class_id = cc.id WHERE e.nim = '92575408051' AND cc.group_code = 'IF581-B';
 INSERT INTO pref_courses (preference_id, urutan, skor, group_code) VALUES (LAST_INSERT_ID(), 1, 100, 'IF 440-C');
 
-INSERT INTO preferences (nim, swap_course) SELECT '37583387500', e.id FROM enrollments e JOIN course_classes cc ON e.class_id = cc.id WHERE e.nim = '37583387500' AND cc.group_code = 'IF 440-C';
-INSERT INTO pref_courses (preference_id, urutan, skor, group_code) VALUES (LAST_INSERT_ID(), 1, 100, 'IF 581-B');
-
 INSERT INTO preferences (nim, swap_course) SELECT '8159942467', e.id FROM enrollments e JOIN course_classes cc ON e.class_id = cc.id WHERE e.nim = '8159942467' AND cc.group_code = 'IF 451-C';
 INSERT INTO pref_courses (preference_id, urutan, skor, group_code) VALUES (LAST_INSERT_ID(), 1, 100, 'IF 590-G');
 

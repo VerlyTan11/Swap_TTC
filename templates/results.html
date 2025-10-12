@@ -46,7 +46,6 @@
     <thead>
         <tr>
             <th>NIM</th>
-            <th>Nama</th>
             <th>Kelas Lama</th>
             <th>Kelas Baru</th>
             <th>Skor Preferensi</th>
@@ -81,7 +80,7 @@
 {% if unsuccessful_swaps %}
 <ul class="list-group">
     {% for student in unsuccessful_swaps %}
-    <li class="list-group-item">({{ student.nim }})</li>
+    <li class="list-group-item">{{ student.nim }}</li>
     {% endfor %}
 </ul>
 {% else %}
