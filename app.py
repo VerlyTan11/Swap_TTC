@@ -207,10 +207,18 @@ def run_ttc():
         if not conn:
             flash('Koneksi database gagal.', 'danger')
             return redirect(url_for('dashboard'))
-        run_ttc_swap(conn)
+        
+        #Tangkap hasil statistik
+        stats_data = run_ttc_swap(conn)
+        
+        #Simpan di session
+        session['last_run_stats'] = stats_data
+        
         conn.close()
         flash('Algoritma Top Trading Cycles berhasil dijalankan!', 'success')
     except Exception as e:
+        if 'last_run_stats' in session:
+            session.pop('last_run_stats')
         flash(f'Gagal menjalankan algoritma: {e}', 'danger')
     return redirect(url_for('results'))
 
@@ -225,6 +233,8 @@ def results():
         return render_template('results.html', successful_swaps=[], unsuccessful_swaps=[], average_satisfaction=0)
     
     cursor = conn.cursor(dictionary=True)
+
+    stats = session.pop('last_run_stats', None)
     
     successful_swaps = []
     unsuccessful_swaps = []
@@ -244,7 +254,7 @@ def results():
         successful_swaps = cursor.fetchall()
 
         query_unsuccessful = """
-            SELECT s.nim FROM preferences p
+            SELECT DISTINCT s.nim FROM preferences p 
             JOIN students s ON p.nim = s.nim
             WHERE p.nim NOT IN (SELECT nim FROM swap_results)
         """
@@ -288,7 +298,8 @@ def results():
     return render_template('results.html', 
                            successful_swaps=successful_swaps, 
                            unsuccessful_swaps=unsuccessful_swaps, 
-                           average_satisfaction=average_satisfaction)
+                           average_satisfaction=average_satisfaction,
+                           stats=stats)
 
 # --- PAGE 3: DETAIL PERTUKARAN ---
 @app.route('/details/<nim>')

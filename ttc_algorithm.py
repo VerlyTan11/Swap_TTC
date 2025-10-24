@@ -69,6 +69,7 @@ def run_ttc_swap(db_connection):
         cursor.execute(prefs_query)
         all_prefs_list = fetch_all_as_dict(cursor)
         prefs_data = {}
+        all_involved_group_codes = set()
         for pref in all_prefs_list:
             pref_id = pref['pref_id']
             if pref_id not in prefs_data:
@@ -79,11 +80,17 @@ def run_ttc_swap(db_connection):
                     'offering_group_code': pref['offering_group_code'],
                     'choices': []
                 }
+                all_involved_group_codes.add(pref['offering_group_code'])
+
             prefs_data[pref_id]['choices'].append({
                 'target_group_code': pref['target_group_code'], 'skor': pref['skor']
             })
+            all_involved_group_codes.add(pref['target_group_code'])
+
+        #Total variasi kelas unik yang terlibat
+        total_class_variations = len(all_involved_group_codes)
         
-        # [PERUBAHAN] Hitung jumlah mahasiswa unik yang berpartisipasi
+        #Hitung jumlah mahasiswa unik yang berpartisipasi
         initial_nims = {pref['nim'] for pref in prefs_data.values()}
         total_participants = len(initial_nims)
         total_requested_swaps = len(prefs_data)
@@ -95,8 +102,9 @@ def run_ttc_swap(db_connection):
         cursor.execute("TRUNCATE TABLE swap_results"); db_connection.commit()
         
         participants = set(prefs_data.keys())
-        print(f"[INFO] Jumlah mahasiswa berpartisipasi: {total_participants}"); sys.stdout.flush()
-        print(f"[INFO] Total kelas                    : {total_requested_swaps}"); sys.stdout.flush()
+        print(f"[INFO] Jumlah mahasiswa berpartisipasi  : {total_participants}"); sys.stdout.flush()
+        print(f"[INFO] Total kelas                      : {total_requested_swaps}"); sys.stdout.flush()
+        print(f"[INFO] Jumlah variasi kelas (group_code): {total_class_variations}"); sys.stdout.flush()
 
         iteration = 1
         while participants:
@@ -191,6 +199,7 @@ def run_ttc_swap(db_connection):
         print("\n--- [STATISTICS REPORT] ---"); sys.stdout.flush()
         print(f"  - Total Mahasiswa Partisipasi: {total_participants}"); sys.stdout.flush()
         print(f"  - Total kelas                : {total_requested_swaps}"); sys.stdout.flush()
+        print(f"  - Total Variasi Kelas (Unik) : {total_class_variations}"); sys.stdout.flush()
         print(f"  - Mahasiswa Berhasil Tukar   : {successful_count}"); sys.stdout.flush()
         print(f"  - Mahasiswa Tidak Berhasil   : {unsuccessful_count}"); sys.stdout.flush()
         print(f"  - Persentase Keberhasilan    : {success_percentage:.2f}%"); sys.stdout.flush()
@@ -201,4 +210,17 @@ def run_ttc_swap(db_connection):
         print(f"  - Penggunaan Memori Akhir    : {mem_after:.2f} MB"); sys.stdout.flush()
         print(f"  - Memori yang Digunakan      : {(mem_after - mem_before):.2f} MB"); sys.stdout.flush()
         print("--- [LOG END] Proses pertukaran jadwal selesai ---"); sys.stdout.flush()
+
+        stats_report = {
+            'total_participants': total_participants,
+            'total_requested_swaps': total_requested_swaps,
+            'total_class_variations': total_class_variations,
+            'successful_count': successful_count,
+            'unsuccessful_count': unsuccessful_count,
+            'success_percentage': success_percentage,
+            'duration': duration,
+            'mem_used_mb': (mem_after - mem_before)
+        }
+
         if 'cursor' in locals() and cursor: cursor.close()
+    return stats_report
