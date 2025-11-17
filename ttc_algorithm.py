@@ -8,7 +8,6 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from datetime import datetime
 
-# ... (fungsi check_schedule_conflict, fetch_all_as_dict, fetch_one_as_dict tidak perlu diubah) ...
 def check_schedule_conflict(student_schedule, new_class_schedule, offered_class_group_code):
     """Mengecek apakah jadwal kelas baru bentrok dengan jadwal yang sudah ada."""
     if not new_class_schedule:
@@ -48,9 +47,12 @@ def run_ttc_swap(db_connection):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    # [PERUBAHAN] Variabel untuk menyimpan statistik
     total_participants = 0
     successful_nims = set()
+    total_operations = 0  # Penghitung total operasi
+    total_iterations = 0  # menghitung iterasi
+    operations_per_iteration = {}  # dictionary untuk menyimpan operasi tiap iterasi
+    success_by_preference = {}  # urutan preferensi (1,2,3,..), value = count mahasiswa
 
     try:
         print("--- [LOG START] Memulai Proses Pertukaran Jadwal ---"); sys.stdout.flush()
@@ -69,7 +71,8 @@ def run_ttc_swap(db_connection):
         cursor.execute(prefs_query)
         all_prefs_list = fetch_all_as_dict(cursor)
         prefs_data = {}
-        all_involved_group_codes = set()
+        all_involved_group_codes = set()  # Untuk menghitung variasi kelas
+
         for pref in all_prefs_list:
             pref_id = pref['pref_id']
             if pref_id not in prefs_data:
@@ -83,34 +86,36 @@ def run_ttc_swap(db_connection):
                 all_involved_group_codes.add(pref['offering_group_code'])
 
             prefs_data[pref_id]['choices'].append({
-                'target_group_code': pref['target_group_code'], 'skor': pref['skor']
+                'target_group_code': pref['target_group_code'], 'skor': pref['skor'], 'urutan': pref['urutan']
             })
             all_involved_group_codes.add(pref['target_group_code'])
 
-        #Total variasi kelas unik yang terlibat
+        # Hitung total variasi kelas unik
         total_class_variations = len(all_involved_group_codes)
-        
-        #Hitung jumlah mahasiswa unik yang berpartisipasi
+
         initial_nims = {pref['nim'] for pref in prefs_data.values()}
         total_participants = len(initial_nims)
-        total_requested_swaps = len(prefs_data)
+        total_requested_swaps = len(prefs_data)  # Ini adalah jumlah permintaan (bukan mahasiswa)
 
         cursor.execute("SELECT nim, group_code, day, start_time, end_time, course_name FROM enrollments e JOIN course_classes cc ON e.class_id = cc.id")
         schedules_by_nim = {}
         for row in fetch_all_as_dict(cursor):
             schedules_by_nim.setdefault(row['nim'], []).append(row)
         cursor.execute("TRUNCATE TABLE swap_results"); db_connection.commit()
-        
+
         participants = set(prefs_data.keys())
-        print(f"[INFO] Jumlah mahasiswa berpartisipasi  : {total_participants}"); sys.stdout.flush()
-        print(f"[INFO] Total kelas                      : {total_requested_swaps}"); sys.stdout.flush()
-        print(f"[INFO] Jumlah variasi kelas (group_code): {total_class_variations}"); sys.stdout.flush()
+        print(f"[INFO] Jumlah mahasiswa berpartisipasi: {total_participants}"); sys.stdout.flush()
+        print(f"[INFO] Total penawaran kelas         : {total_requested_swaps}"); sys.stdout.flush()
+        print(f"[INFO] Jumlah variasi kelas (unik)  : {total_class_variations}"); sys.stdout.flush()
 
         iteration = 1
         while participants:
             print(f"\n--- Iterasi TTC ke-{iteration} ---"); sys.stdout.flush()
-            
-            # ... (Sisa dari loop while tidak ada perubahan signifikan) ...
+
+            # Inisialisasi counter operasi untuk iterasi ini
+            iteration_operations = 0
+            total_iterations += 1
+
             offered_group_to_pref_id = { prefs_data[pref_id]['offering_group_code']: pref_id for pref_id in participants }
             G = nx.DiGraph()
             successful_pointers = {}
@@ -118,19 +123,29 @@ def run_ttc_swap(db_connection):
             for current_pref_id in list(participants):
                 current_offer = prefs_data[current_pref_id]
                 for choice in current_offer['choices']:
+                    iteration_operations += 1  # Setiap pengecekan preferensi dihitung sbg 1 operasi
+
                     target_group = choice['target_group_code']
                     target_pref_id = offered_group_to_pref_id.get(target_group)
-                    if not target_pref_id: continue
+                    if not target_pref_id:
+                        continue
                     target_offer = prefs_data[target_pref_id]
-                    if current_offer['nim'] == target_offer['nim']: continue
+                    if current_offer['nim'] == target_offer['nim']:
+                        continue
                     target_class_schedule = next((s for s in schedules_by_nim.get(target_offer['nim'], []) if s['group_code'] == target_group), None)
-                    if check_schedule_conflict(schedules_by_nim.get(current_offer['nim'], []), target_class_schedule, current_offer['offering_group_code']): continue
-                    
+                    if check_schedule_conflict(schedules_by_nim.get(current_offer['nim'], []), target_class_schedule, current_offer['offering_group_code']):
+                        continue
+
                     print(f"  - [GRAPH] Penawaran #{current_pref_id} (NIM {current_offer['nim']}) menunjuk ke Penawaran #{target_pref_id} (NIM {target_offer['nim']})")
                     G.add_edge(current_pref_id, target_pref_id)
                     successful_pointers[current_pref_id] = choice
                     break
-            
+
+            # Simpan hasil operasi untuk iterasi ini
+            operations_per_iteration[iteration] = iteration_operations
+            print(f"  - [INFO] Total operasi pencarian pointer iterasi ini: {iteration_operations}"); sys.stdout.flush()
+            total_operations += iteration_operations
+
             if G.number_of_nodes() > 0:
                 plt.figure(figsize=(12, 10))
                 pos = nx.spring_layout(G, seed=42)
@@ -147,24 +162,40 @@ def run_ttc_swap(db_connection):
             if not cycles:
                 print("[INFO] Tidak ditemukan siklus yang valid. Proses tukar berhenti."); sys.stdout.flush()
                 break
-            
+
             print(f"[INFO] Ditemukan {len(cycles)} siklus: {cycles}"); sys.stdout.flush()
             swapped_prefs_this_iter = set()
             for cycle in cycles:
-                if any(p_id in swapped_prefs_this_iter for p_id in cycle): continue
+                if any(p_id in swapped_prefs_this_iter for p_id in cycle):
+                    continue
                 for i, current_pref_id in enumerate(cycle):
                     next_pref_id = cycle[(i + 1) % len(cycle)]
+
                     nim_to_update = prefs_data[current_pref_id]['nim']
-                    # [PERUBAHAN] Catat NIM yang berhasil
                     successful_nims.add(nim_to_update)
-                    
+
                     old_enrollment_id = prefs_data[current_pref_id]['offering_enrollment_id']
                     old_class_id = prefs_data[current_pref_id]['offering_class_id']
-                    score = successful_pointers[current_pref_id]['skor']
+
+                    chosen_pref = successful_pointers[current_pref_id]  
+                    score = chosen_pref['skor']
+                    used_pref_order = chosen_pref.get('urutan', None)
+
+                    # Hitung preferensi terpakai
+                    if used_pref_order is not None:
+                        success_by_preference.setdefault(used_pref_order, 0)
+                        success_by_preference[used_pref_order] += 1
+
                     new_class_id = prefs_data[next_pref_id]['offering_class_id']
-                    
-                    cursor.execute("UPDATE enrollments SET class_id=%s WHERE id=%s", (new_class_id, old_enrollment_id))
-                    cursor.execute("INSERT INTO swap_results (nim, before_class_id, after_class_id, score_points) VALUES (%s,%s,%s,%s)", (nim_to_update, old_class_id, new_class_id, score))
+
+                    # UPDATE DB
+                    cursor.execute("UPDATE enrollments SET class_id=%s WHERE id=%s",
+                                (new_class_id, old_enrollment_id))
+                    cursor.execute(
+                        "INSERT INTO swap_results (nim, before_class_id, after_class_id, score_points)"
+                        " VALUES (%s,%s,%s,%s)",
+                        (nim_to_update, old_class_id, new_class_id, score)
+                    )
                     print(f"  - [SWAP] {nim_to_update}: kelas id {old_class_id} -> {new_class_id} (Skor: {score})"); sys.stdout.flush()
                     swapped_prefs_this_iter.add(current_pref_id)
 
@@ -174,14 +205,15 @@ def run_ttc_swap(db_connection):
                 if pref_to_delete:
                     cursor.execute("DELETE FROM pref_courses WHERE preference_id = %s", (pref_id,))
                     cursor.execute("DELETE FROM preferences WHERE id = %s", (pref_id,))
-            
+
+            # Refresh schedules setelah update
             cursor.execute("SELECT nim, group_code, day, start_time, end_time, course_name FROM enrollments e JOIN course_classes cc ON e.class_id = cc.id")
             schedules_by_nim = {}
             for row in fetch_all_as_dict(cursor):
                 schedules_by_nim.setdefault(row['nim'], []).append(row)
             db_connection.commit()
             iteration += 1
-        
+
         remaining_nims = {pref['nim'] for pref in prefs_data.values()}
         if remaining_nims:
             print(f"\n[INFO] Mahasiswa yang tidak berhasil menukarkan sisa kelasnya: {list(remaining_nims)}"); sys.stdout.flush()
@@ -190,25 +222,26 @@ def run_ttc_swap(db_connection):
         end_time = time.perf_counter()
         mem_after = process.memory_info().rss / (1024 * 1024)
         duration = end_time - start_time
-        
-        # [PERUBAHAN] Hitung statistik akhir
+
         successful_count = len(successful_nims)
         unsuccessful_count = total_participants - successful_count
         success_percentage = (successful_count / total_participants * 100) if total_participants > 0 else 0
 
         print("\n--- [STATISTICS REPORT] ---"); sys.stdout.flush()
-        print(f"  - Total Mahasiswa Partisipasi: {total_participants}"); sys.stdout.flush()
-        print(f"  - Total kelas                : {total_requested_swaps}"); sys.stdout.flush()
-        print(f"  - Total Variasi Kelas (Unik) : {total_class_variations}"); sys.stdout.flush()
-        print(f"  - Mahasiswa Berhasil Tukar   : {successful_count}"); sys.stdout.flush()
-        print(f"  - Mahasiswa Tidak Berhasil   : {unsuccessful_count}"); sys.stdout.flush()
-        print(f"  - Persentase Keberhasilan    : {success_percentage:.2f}%"); sys.stdout.flush()
-        
+        print(f"  - Total Mahasiswa Partisipasi : {total_participants}"); sys.stdout.flush()
+        print(f"  - Total Penawaran Kelas       : {total_requested_swaps}"); sys.stdout.flush()
+        print(f"  - Total Variasi Kelas         : {total_class_variations}"); sys.stdout.flush()
+        print(f"  - Mahasiswa Berhasil Tukar    : {successful_count}"); sys.stdout.flush()
+        print(f"  - Mahasiswa Tidak Berhasil    : {unsuccessful_count}"); sys.stdout.flush()
+        print(f"  - Persentase Keberhasilan     : {success_percentage:.2f}%"); sys.stdout.flush()
+
         print("\n--- [PERFORMANCE REPORT] ---"); sys.stdout.flush()
-        print(f"  - Waktu Komputasi Total      : {duration:.4f} detik"); sys.stdout.flush()
-        print(f"  - Penggunaan Memori Awal     : {mem_before:.2f} MB"); sys.stdout.flush()
-        print(f"  - Penggunaan Memori Akhir    : {mem_after:.2f} MB"); sys.stdout.flush()
-        print(f"  - Memori yang Digunakan      : {(mem_after - mem_before):.2f} MB"); sys.stdout.flush()
+        print(f"  - Waktu Komputasi Total       : {duration:.4f} detik"); sys.stdout.flush()
+        print(f"  - Total Operasi               : {total_operations}"); sys.stdout.flush()
+        print(f"  - Total Iterasi               : {total_iterations}"); sys.stdout.flush()
+        print(f"  - Penggunaan Memori Awal      : {mem_before:.2f} MB"); sys.stdout.flush()
+        print(f"  - Penggunaan Memori Akhir     : {mem_after:.2f} MB"); sys.stdout.flush()
+        print(f"  - Memori yang Digunakan       : {(mem_after - mem_before):.2f} MB"); sys.stdout.flush()
         print("--- [LOG END] Proses pertukaran jadwal selesai ---"); sys.stdout.flush()
 
         stats_report = {
@@ -219,8 +252,12 @@ def run_ttc_swap(db_connection):
             'unsuccessful_count': unsuccessful_count,
             'success_percentage': success_percentage,
             'duration': duration,
+            'total_operations': total_operations,
+            'operations_per_iteration': operations_per_iteration,
+            'total_iterations': total_iterations,
+            'success_by_preference': success_by_preference,
             'mem_used_mb': (mem_after - mem_before)
         }
 
         if 'cursor' in locals() and cursor: cursor.close()
-    return stats_report
+        return stats_report

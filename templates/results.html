@@ -10,7 +10,7 @@
     <div>
         <!-- Tombol Pemicu Modal Statistik -->
         {% if stats %}
-        <button type.="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#statsModal">
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#statsModal">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
                 class="bi bi-clipboard-data" viewBox="0 0 16 16">
                 <path
@@ -40,21 +40,7 @@
 </div>
 <hr>
 
-<!-- [PERUBAHAN BARU] Tampilan Statistik Rata-rata yang Lebih Baik -->
-{% if session.role == 'admin' %}
-<div class="row">
-    <div class="col-md-12">
-        <h4>Ringkasan Eksekusi</h4>
-        <div class="card text-white bg-info mb-3">
-            <div class="card-header">Statistik Kepuasan Umum</div>
-            <div class="card-body">
-                <h3 class="card-title">{{ "%.2f"|format(average_satisfaction) }}%</h3>
-                <p class="card-text">Rata-rata persentase kepuasan mahasiswa yang berhasil bertukar.</p>
-            </div>
-        </div>
-    </div>
-</div>
-{% elif successful_swaps %}
+{% if session.role != 'admin' %}
 <h4>Status Pertukaran Anda</h4>
 <div class="alert alert-success">
     Selamat, Anda berhasil bertukar jadwal dengan skor preferensi: <strong>{{ average_satisfaction }}%</strong>
@@ -174,6 +160,53 @@
                         <span class="badge bg-info text-dark rounded-pill fs-6">{{
                             "%.2f"|format(stats.success_percentage) }}%</span>
                     </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center text-primary fw-bold">
+                        Rata-rata Kepuasan Mahasiwa
+                        <span class="badge bg-primary rounded-pill fs-6">
+                            {{ "%.2f"|format(average_satisfaction) }}%
+                        </span>
+                    </li>
+                </ul>
+
+                <h6 class="mt-4">Jumlah Operasi per Iterasi</h6>
+                
+                <ul class="list-group list-group-flush">
+                
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        Total Iterasi TTC
+                        <span class="badge bg-primary text-white rounded-pill">
+                            {{ stats.total_iterations }}
+                        </span>
+                    </li>
+                
+                    {% for iter, ops in stats.operations_per_iteration.items() %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        Iterasi {{ iter }}
+                        <span class="badge bg-light text-dark rounded-pill">
+                            {{ ops }} operasi
+                        </span>
+                    </li>
+                    {% endfor %}
+
+                    <li class="list-group-item d-flex justify-content-between align-items-center text-dark fw-bold">
+                        Total Operasi Semua Iterasi
+                        <span class="badge bg-dark text-white rounded-pill fs-6">
+                            {{ stats.total_operations }}
+                        </span>
+                    </li>
+
+                </ul>
+
+                <h6 class="mt-4">Mahasiswa Berhasil Berdasarkan Urutan Preferensi</h6>
+                <ul class="list-group list-group-flush">
+                    {% for pref_order, count in stats.success_by_preference.items() %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        Preferensi ke-{{ pref_order }}
+                        <span class="badge bg-success rounded-pill fs-6">
+                            {{ count }} mahasiswa
+                        </span>
+                    </li>
+                    {% endfor %}
                 </ul>
 
                 <h6 class="mt-4">Laporan Performa</h6>
