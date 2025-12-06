@@ -1,0 +1,118 @@
+-- ==============================================
+-- SKENARIO 11: N=10, V=50, P=2
+-- ==============================================
+
+SET FOREIGN_KEY_CHECKS = 0;
+TRUNCATE TABLE preferences;
+TRUNCATE TABLE pref_courses;
+TRUNCATE TABLE swap_results;
+TRUNCATE TABLE students;
+TRUNCATE TABLE course_classes;
+TRUNCATE TABLE enrollments;
+SET FOREIGN_KEY_CHECKS = 1;
+
+INSERT INTO students (nim, major, angkatan, password) VALUES ('MHS11_001', 'Informatika', 2022, '1234');
+INSERT INTO students (nim, major, angkatan, password) VALUES ('MHS11_002', 'Informatika', 2024, '1234');
+INSERT INTO students (nim, major, angkatan, password) VALUES ('MHS11_003', 'Informatika', 2022, '1234');
+INSERT INTO students (nim, major, angkatan, password) VALUES ('MHS11_004', 'Informatika', 2022, '1234');
+INSERT INTO students (nim, major, angkatan, password) VALUES ('MHS11_005', 'Informatika', 2023, '1234');
+INSERT INTO students (nim, major, angkatan, password) VALUES ('MHS11_006', 'Informatika', 2023, '1234');
+INSERT INTO students (nim, major, angkatan, password) VALUES ('MHS11_007', 'Informatika', 2024, '1234');
+INSERT INTO students (nim, major, angkatan, password) VALUES ('MHS11_008', 'Informatika', 2022, '1234');
+INSERT INTO students (nim, major, angkatan, password) VALUES ('MHS11_009', 'Informatika', 2024, '1234');
+INSERT INTO students (nim, major, angkatan, password) VALUES ('MHS11_010', 'Informatika', 2024, '1234');
+
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (1, 'MK001', 'Matkul 1', 'A', 'CLS001');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (2, 'MK002', 'Matkul 2', 'A', 'CLS002');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (3, 'MK003', 'Matkul 3', 'A', 'CLS003');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (4, 'MK004', 'Matkul 4', 'A', 'CLS004');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (5, 'MK005', 'Matkul 5', 'A', 'CLS005');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (6, 'MK006', 'Matkul 6', 'A', 'CLS006');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (7, 'MK007', 'Matkul 7', 'A', 'CLS007');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (8, 'MK008', 'Matkul 8', 'A', 'CLS008');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (9, 'MK009', 'Matkul 9', 'A', 'CLS009');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (10, 'MK010', 'Matkul 10', 'A', 'CLS010');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (11, 'MK011', 'Matkul 11', 'A', 'CLS011');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (12, 'MK012', 'Matkul 12', 'A', 'CLS012');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (13, 'MK013', 'Matkul 13', 'A', 'CLS013');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (14, 'MK014', 'Matkul 14', 'A', 'CLS014');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (15, 'MK015', 'Matkul 15', 'A', 'CLS015');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (16, 'MK016', 'Matkul 16', 'A', 'CLS016');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (17, 'MK017', 'Matkul 17', 'A', 'CLS017');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (18, 'MK018', 'Matkul 18', 'A', 'CLS018');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (19, 'MK019', 'Matkul 19', 'A', 'CLS019');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (20, 'MK020', 'Matkul 20', 'A', 'CLS020');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (21, 'MK021', 'Matkul 21', 'A', 'CLS021');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (22, 'MK022', 'Matkul 22', 'A', 'CLS022');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (23, 'MK023', 'Matkul 23', 'A', 'CLS023');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (24, 'MK024', 'Matkul 24', 'A', 'CLS024');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (25, 'MK025', 'Matkul 25', 'A', 'CLS025');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (26, 'MK026', 'Matkul 26', 'A', 'CLS026');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (27, 'MK027', 'Matkul 27', 'A', 'CLS027');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (28, 'MK028', 'Matkul 28', 'A', 'CLS028');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (29, 'MK029', 'Matkul 29', 'A', 'CLS029');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (30, 'MK030', 'Matkul 30', 'A', 'CLS030');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (31, 'MK031', 'Matkul 31', 'A', 'CLS031');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (32, 'MK032', 'Matkul 32', 'A', 'CLS032');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (33, 'MK033', 'Matkul 33', 'A', 'CLS033');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (34, 'MK034', 'Matkul 34', 'A', 'CLS034');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (35, 'MK035', 'Matkul 35', 'A', 'CLS035');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (36, 'MK036', 'Matkul 36', 'A', 'CLS036');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (37, 'MK037', 'Matkul 37', 'A', 'CLS037');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (38, 'MK038', 'Matkul 38', 'A', 'CLS038');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (39, 'MK039', 'Matkul 39', 'A', 'CLS039');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (40, 'MK040', 'Matkul 40', 'A', 'CLS040');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (41, 'MK041', 'Matkul 41', 'A', 'CLS041');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (42, 'MK042', 'Matkul 42', 'A', 'CLS042');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (43, 'MK043', 'Matkul 43', 'A', 'CLS043');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (44, 'MK044', 'Matkul 44', 'A', 'CLS044');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (45, 'MK045', 'Matkul 45', 'A', 'CLS045');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (46, 'MK046', 'Matkul 46', 'A', 'CLS046');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (47, 'MK047', 'Matkul 47', 'A', 'CLS047');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (48, 'MK048', 'Matkul 48', 'A', 'CLS048');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (49, 'MK049', 'Matkul 49', 'A', 'CLS049');
+INSERT INTO course_classes (id, course_code, course_name, class_name, group_code) VALUES (50, 'MK050', 'Matkul 50', 'A', 'CLS050');
+
+INSERT INTO enrollments (id, nim, class_id) VALUES (1, 'MHS11_001', 27);
+INSERT INTO enrollments (id, nim, class_id) VALUES (2, 'MHS11_002', 25);
+INSERT INTO enrollments (id, nim, class_id) VALUES (3, 'MHS11_003', 42);
+INSERT INTO enrollments (id, nim, class_id) VALUES (4, 'MHS11_004', 2);
+INSERT INTO enrollments (id, nim, class_id) VALUES (5, 'MHS11_005', 28);
+INSERT INTO enrollments (id, nim, class_id) VALUES (6, 'MHS11_006', 6);
+INSERT INTO enrollments (id, nim, class_id) VALUES (7, 'MHS11_007', 32);
+INSERT INTO enrollments (id, nim, class_id) VALUES (8, 'MHS11_008', 20);
+INSERT INTO enrollments (id, nim, class_id) VALUES (9, 'MHS11_009', 38);
+INSERT INTO enrollments (id, nim, class_id) VALUES (10, 'MHS11_010', 38);
+
+INSERT INTO preferences (id, nim, swap_course) VALUES (1, 'MHS11_001', 1);
+INSERT INTO pref_courses (preference_id, urutan, skor, group_code) VALUES (1, 1, 100, 'CLS026');
+INSERT INTO pref_courses (preference_id, urutan, skor, group_code) VALUES (1, 2, 90, 'CLS038');
+INSERT INTO preferences (id, nim, swap_course) VALUES (2, 'MHS11_002', 2);
+INSERT INTO pref_courses (preference_id, urutan, skor, group_code) VALUES (2, 1, 100, 'CLS012');
+INSERT INTO pref_courses (preference_id, urutan, skor, group_code) VALUES (2, 2, 90, 'CLS029');
+INSERT INTO preferences (id, nim, swap_course) VALUES (3, 'MHS11_003', 3);
+INSERT INTO pref_courses (preference_id, urutan, skor, group_code) VALUES (3, 1, 100, 'CLS040');
+INSERT INTO pref_courses (preference_id, urutan, skor, group_code) VALUES (3, 2, 90, 'CLS021');
+INSERT INTO preferences (id, nim, swap_course) VALUES (4, 'MHS11_004', 4);
+INSERT INTO pref_courses (preference_id, urutan, skor, group_code) VALUES (4, 1, 100, 'CLS041');
+INSERT INTO pref_courses (preference_id, urutan, skor, group_code) VALUES (4, 2, 90, 'CLS006');
+INSERT INTO preferences (id, nim, swap_course) VALUES (5, 'MHS11_005', 5);
+INSERT INTO pref_courses (preference_id, urutan, skor, group_code) VALUES (5, 1, 100, 'CLS013');
+INSERT INTO pref_courses (preference_id, urutan, skor, group_code) VALUES (5, 2, 90, 'CLS024');
+INSERT INTO preferences (id, nim, swap_course) VALUES (6, 'MHS11_006', 6);
+INSERT INTO pref_courses (preference_id, urutan, skor, group_code) VALUES (6, 1, 100, 'CLS004');
+INSERT INTO pref_courses (preference_id, urutan, skor, group_code) VALUES (6, 2, 90, 'CLS008');
+INSERT INTO preferences (id, nim, swap_course) VALUES (7, 'MHS11_007', 7);
+INSERT INTO pref_courses (preference_id, urutan, skor, group_code) VALUES (7, 1, 100, 'CLS038');
+INSERT INTO pref_courses (preference_id, urutan, skor, group_code) VALUES (7, 2, 90, 'CLS010');
+INSERT INTO preferences (id, nim, swap_course) VALUES (8, 'MHS11_008', 8);
+INSERT INTO pref_courses (preference_id, urutan, skor, group_code) VALUES (8, 1, 100, 'CLS027');
+INSERT INTO pref_courses (preference_id, urutan, skor, group_code) VALUES (8, 2, 90, 'CLS024');
+INSERT INTO preferences (id, nim, swap_course) VALUES (9, 'MHS11_009', 9);
+INSERT INTO pref_courses (preference_id, urutan, skor, group_code) VALUES (9, 1, 100, 'CLS015');
+INSERT INTO pref_courses (preference_id, urutan, skor, group_code) VALUES (9, 2, 90, 'CLS050');
+INSERT INTO preferences (id, nim, swap_course) VALUES (10, 'MHS11_010', 10);
+INSERT INTO pref_courses (preference_id, urutan, skor, group_code) VALUES (10, 1, 100, 'CLS001');
+INSERT INTO pref_courses (preference_id, urutan, skor, group_code) VALUES (10, 2, 90, 'CLS008');
+
+
