@@ -91,7 +91,7 @@ def run_ttc_swap(db_connection):
             all_involved_group_codes.add(pref['target_group_code'])
 
         # Hitung total variasi kelas unik
-        total_class_variations = 100
+        total_class_variations = len(all_involved_group_codes)
 
         initial_nims = {pref['nim'] for pref in prefs_data.values()}
         total_participants = len(initial_nims)
