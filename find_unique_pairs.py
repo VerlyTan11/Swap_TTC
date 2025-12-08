@@ -3,13 +3,13 @@ from datetime import datetime
 import os
 import networkx as nx
 
-def find_optimal_pairs_and_generate_sql(input_csv_filename='../CSV/potential_pairs_2022_2023_2024.csv', output_sql_filename='./bulk/all_if.sql'):
+def find_optimal_pairs_and_generate_sql(input_csv_filename='../CSV/potential_pairs_2022_2023_2024.csv', output_sql_filename='./bulk/1000_uji.sql'):
     """
     Membaca file CSV berisi semua kemungkinan pasangan, menggunakan algoritma
     Maximum Cardinality Matching untuk memilih 50 pasangan paling optimal, 
     dan menghasilkan file SQL final.
     """
-    TARGET_PAIRS = 369
+    TARGET_PAIRS = 250
     TARGET_PARTICIPANTS = TARGET_PAIRS * 2
 
     print(f"Membaca file pasangan potensial: {input_csv_filename}...")
